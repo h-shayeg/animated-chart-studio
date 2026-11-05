@@ -9,6 +9,8 @@ class Settings(BaseSettings):
     app_name: str = "Animated Chart Studio API"
     app_version: str = "0.1.0"
     debug: bool = False
+    max_upload_bytes: int = 10 * 1024 * 1024
+    preview_rows: int = 20
 
     model_config = SettingsConfigDict(env_prefix="CHART_STUDIO_", env_file=".env", extra="ignore")
 
