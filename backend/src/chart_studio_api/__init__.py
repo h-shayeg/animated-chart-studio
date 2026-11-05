@@ -1,2 +1,1 @@
-def main() -> None:
-    print("Hello from chart-studio-api!")
+"""Animated Chart Studio API."""
