@@ -43,3 +43,26 @@ jobs:
 
       - name: Test
         run: uv run pytest
+
+  docker:
+    name: Docker build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Validate compose file
+        run: docker compose config --quiet
+
+      - name: Build backend image
+        run: docker build --tag chart-studio-backend:ci backend
+
+      - name: Smoke test
+        run: |
+          docker run -d --name api -p 8000:8000 chart-studio-backend:ci
+          for i in $(seq 1 20); do
+            curl -fsS http://localhost:8000/health && exit 0
+            sleep 1
+          done
+          docker logs api
+          exit 1

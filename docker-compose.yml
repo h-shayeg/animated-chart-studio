@@ -1,0 +1,11 @@
+services:
+  backend:
+    build:
+      context: ./backend
+    image: animated-chart-studio-backend
+    init: true
+    restart: unless-stopped
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    environment:
+      CHART_STUDIO_DEBUG: "false"
