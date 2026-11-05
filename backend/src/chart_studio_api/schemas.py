@@ -11,11 +11,11 @@ class ColumnInfo(BaseModel):
     missing: int
 
 
-class DatasetPreview(BaseModel):
+class DatasetTable(BaseModel):
     filename: str
     rows: int
     columns: list[ColumnInfo]
-    preview: list[dict[str, Any]]
+    data: list[dict[str, Any]]
 
 
 class SummaryRequest(BaseModel):

@@ -7,7 +7,7 @@ from pathlib import PurePath
 
 import pandas as pd
 
-from chart_studio_api.schemas import ColumnInfo, ColumnKind, DatasetPreview
+from chart_studio_api.schemas import ColumnInfo, ColumnKind, DatasetTable
 
 CSV_ENCODINGS = ("utf-8-sig", "cp1256")
 
@@ -31,10 +31,10 @@ def read_table(filename: str, content: bytes) -> pd.DataFrame:
     return table
 
 
-def describe_table(filename: str, table: pd.DataFrame, preview_rows: int) -> DatasetPreview:
+def describe_table(filename: str, table: pd.DataFrame) -> DatasetTable:
     columns = [_describe_column(str(name), table[name]) for name in table.columns]
-    preview = json.loads(table.head(preview_rows).to_json(orient="records", date_format="iso"))
-    return DatasetPreview(filename=filename, rows=len(table), columns=columns, preview=preview)
+    data = json.loads(table.to_json(orient="records", date_format="iso"))
+    return DatasetTable(filename=filename, rows=len(table), columns=columns, data=data)
 
 
 def _read_csv(content: bytes) -> pd.DataFrame:
