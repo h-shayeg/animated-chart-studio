@@ -29,7 +29,7 @@ def test_parse_csv_describes_columns(client: TestClient) -> None:
         "active": "boolean",
     }
     assert body["columns"][2]["missing"] == 1
-    assert body["preview"][0]["city"] == "Tehran"
+    assert body["data"][0]["city"] == "Tehran"
 
 
 def test_parse_semicolon_csv_with_persian_text(client: TestClient) -> None:
