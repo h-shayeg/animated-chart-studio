@@ -56,10 +56,10 @@ def _read_xlsx(content: bytes) -> pd.DataFrame:
 
 
 def _describe_column(name: str, series: pd.Series) -> ColumnInfo:
-    return ColumnInfo(name=name, kind=_column_kind(series), missing=int(series.isna().sum()))
+    return ColumnInfo(name=name, kind=column_kind(series), missing=int(series.isna().sum()))
 
 
-def _column_kind(series: pd.Series) -> ColumnKind:
+def column_kind(series: pd.Series) -> ColumnKind:
     if pd.api.types.is_bool_dtype(series):
         return "boolean"
     if pd.api.types.is_numeric_dtype(series):
