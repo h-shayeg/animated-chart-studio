@@ -5,6 +5,15 @@ export type ChartType = 'line' | 'area' | 'bar' | 'scatter' | 'pie'
 
 export const CHART_TYPES: ChartType[] = ['line', 'area', 'bar', 'scatter', 'pie']
 
+export type RangeAxis = 'x' | 'y'
+
+export interface ColorRange {
+  id: string
+  from: number | null
+  to: number | null
+  color: string
+}
+
 export interface ChartConfig {
   type: ChartType
   xColumn: string
@@ -15,6 +24,11 @@ export interface ChartConfig {
   stacked: boolean
   animate: boolean
   durationMs: number
+  ranges: ColorRange[]
+  rangeAxis: RangeAxis
+  cropFrom: number | null
+  cropTo: number | null
+  zoomSlider: boolean
 }
 
 export function defaultConfig(dataset: Dataset): ChartConfig {
@@ -41,5 +55,10 @@ export function defaultConfig(dataset: Dataset): ChartConfig {
     stacked: false,
     animate: true,
     durationMs: 1200,
+    ranges: [],
+    rangeAxis: 'y',
+    cropFrom: null,
+    cropTo: null,
+    zoomSlider: false,
   }
 }

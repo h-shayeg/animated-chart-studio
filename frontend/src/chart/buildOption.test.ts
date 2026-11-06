@@ -35,6 +35,7 @@ const unsorted: Dataset = {
 }
 
 const base = defaultConfig(dataset)
+const range = { id: 'a', from: 5, to: 20, color: '#ff0000' }
 
 function build(patch: Partial<ChartConfig> = {}, source: Dataset = dataset): ChartOption | null {
   const config = patch.xColumn || source !== dataset ? defaultConfig(source) : base
@@ -52,8 +53,19 @@ interface Series {
   animationDelay?: unknown
 }
 
+interface VisualMap {
+  seriesIndex: number
+  dimension: number
+  pieces: Record<string, unknown>[]
+  outOfRange: { color: string }
+}
+
 function seriesOf(option: ChartOption | null): Series[] {
   return (option?.series ?? []) as Series[]
+}
+
+function visualMapsOf(option: ChartOption | null): VisualMap[] {
+  return (option?.visualMap ?? []) as VisualMap[]
 }
 
 function axisType(option: ChartOption | null, axis: 'xAxis' | 'yAxis'): string | undefined {
@@ -163,5 +175,71 @@ describe('buildOption', () => {
 
     expect(series[0]?.animationDuration).toBe(6000)
     expect(typeof series[0]?.animationDelay).toBe('function')
+  })
+})
+
+describe('colour ranges', () => {
+  it('colours value ranges with one visual map per series', () => {
+    const maps = visualMapsOf(build({ ranges: [range] }))
+
+    expect(maps).toHaveLength(2)
+    expect(maps.map((map) => map.seriesIndex)).toEqual([0, 1])
+    expect(maps[0]?.dimension).toBe(1)
+    expect(maps[0]?.pieces).toEqual([{ gte: 5, lte: 20, color: '#ff0000' }])
+  })
+
+  it('keeps the colour of each series outside every range', () => {
+    const maps = visualMapsOf(build({ ranges: [range] }))
+
+    expect(maps[0]?.outOfRange.color).toBe('#4f46e5')
+    expect(maps[1]?.outOfRange.color).toBe('#06b6d4')
+  })
+
+  it('leaves a bound open when it is empty', () => {
+    const maps = visualMapsOf(build({ ranges: [{ ...range, from: null }] }))
+
+    expect(maps[0]?.pieces).toEqual([{ lte: 20, color: '#ff0000' }])
+  })
+
+  it('colours X ranges on a number axis', () => {
+    const maps = visualMapsOf(build({ rangeAxis: 'x', ranges: [range] }, unsorted))
+
+    expect(maps[0]?.dimension).toBe(0)
+  })
+
+  it('ignores X ranges when the X axis is not a number axis', () => {
+    expect(build({ rangeAxis: 'x', ranges: [range] })?.visualMap).toBeUndefined()
+    expect(build({ type: 'bar', rangeAxis: 'x', ranges: [range] }, unsorted)?.visualMap).toBeUndefined()
+  })
+
+  it('ignores ranges without any bound and ranges on pie charts', () => {
+    expect(build({ ranges: [{ ...range, from: null, to: null }] })?.visualMap).toBeUndefined()
+    expect(build({ type: 'pie', ranges: [range] })?.visualMap).toBeUndefined()
+  })
+})
+
+describe('showing only a part', () => {
+  it('draws only the points inside an X range', () => {
+    const series = seriesOf(build({ cropFrom: 2, cropTo: 3 }, unsorted))
+
+    expect(series[0]?.data).toEqual([
+      [2, 20],
+      [3, 30],
+    ])
+  })
+
+  it('counts rows for charts without a number X axis', () => {
+    const series = seriesOf(build({ type: 'bar', cropFrom: 2, cropTo: 3 }))
+
+    expect(series[0]?.data).toEqual([null, 30])
+  })
+
+  it('returns nothing when the crop leaves no rows', () => {
+    expect(build({ cropFrom: 100 }, unsorted)).toBeNull()
+  })
+
+  it('adds the zoom slider only to charts with axes', () => {
+    expect(build({ zoomSlider: true })?.dataZoom).toHaveLength(2)
+    expect(build({ type: 'pie', zoomSlider: true })?.dataZoom).toBeUndefined()
   })
 })

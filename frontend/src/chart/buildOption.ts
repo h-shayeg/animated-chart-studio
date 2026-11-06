@@ -1,6 +1,7 @@
 import type { ColumnKind, Dataset } from '../api'
 import { PALETTES } from './palettes'
-import type { ChartConfig } from './types'
+import { activeRanges, cropDataset, rangeAxisFor } from './ranges'
+import type { ChartConfig, ColorRange } from './types'
 
 export type ChartOption = Record<string, unknown>
 
@@ -51,12 +52,23 @@ function pointsOf(dataset: Dataset, xColumn: string, xKind: ColumnKind, yColumn:
     .sort(compareX)
 }
 
-export function buildOption({ dataset, config, language }: BuildInput): ChartOption | null {
-  const kinds = new Map(dataset.columns.map((column) => [column.name, column.kind]))
+function pieceOf(range: ColorRange): Record<string, unknown> {
+  return {
+    ...(range.from === null ? {} : { gte: range.from }),
+    ...(range.to === null ? {} : { lte: range.to }),
+    color: range.color,
+  }
+}
+
+export function buildOption({ dataset: source, config, language }: BuildInput): ChartOption | null {
+  const kinds = new Map(source.columns.map((column) => [column.name, column.kind]))
   const xKind = kinds.get(config.xColumn)
   const yColumns = config.yColumns.filter((name) => kinds.get(name) === 'numeric')
   if (xKind === undefined || yColumns.length === 0) return null
   if (config.type === 'scatter' && xKind !== 'numeric') return null
+
+  const dataset = cropDataset(source, config)
+  if (dataset.data.length === 0) return null
 
   const numbers = new Intl.NumberFormat(language)
   const formatValue = (value: unknown): string => {
@@ -64,9 +76,10 @@ export function buildOption({ dataset, config, language }: BuildInput): ChartOpt
     return typeof value === 'number' ? numbers.format(value) : toLabel(value)
   }
 
+  const palette = PALETTES[config.palette]
   const common: ChartOption = {
     backgroundColor: 'transparent',
-    color: [...PALETTES[config.palette]],
+    color: [...palette],
     textStyle: { fontFamily: FONT },
     title: {
       text: config.title,
@@ -127,9 +140,28 @@ export function buildOption({ dataset, config, language }: BuildInput): ChartOpt
     left: 16,
     right: 24,
     top: 64,
-    bottom: (showLegend ? 48 : 16) + (namedX ? 24 : 0),
+    bottom: (showLegend ? 48 : 16) + (namedX ? 24 : 0) + (config.zoomSlider ? 40 : 0),
     containLabel: true,
   }
+  const dataZoom = config.zoomSlider
+    ? [{ type: 'inside' }, { type: 'slider', height: 22, bottom: showLegend ? 32 : 8 }]
+    : undefined
+
+  // One visual map per series, so a series keeps its own colour outside every range.
+  const rangeAxis = rangeAxisFor(source, config)
+  const pieces = activeRanges(config).map(pieceOf)
+  const visualMap =
+    rangeAxis === null
+      ? undefined
+      : yColumns.map((_, index) => ({
+          type: 'piecewise',
+          show: false,
+          seriesIndex: index,
+          dimension: rangeAxis === 'x' ? 0 : 1,
+          pieces,
+          outOfRange: { color: palette[index % palette.length] ?? palette[0] },
+        }))
+
   const valueAxis = {
     type: 'value',
     scale: config.type === 'scatter',
@@ -143,6 +175,8 @@ export function buildOption({ dataset, config, language }: BuildInput): ChartOpt
       ...common,
       legend,
       grid,
+      dataZoom,
+      visualMap,
       xAxis: { ...valueAxis, ...axisName },
       yAxis: valueAxis,
       series: yColumns.map((name) => {
@@ -176,6 +210,8 @@ export function buildOption({ dataset, config, language }: BuildInput): ChartOpt
     ...common,
     legend,
     grid,
+    dataZoom,
+    visualMap,
     xAxis,
     yAxis: valueAxis,
     series: yColumns.map((name) => ({

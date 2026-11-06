@@ -6,20 +6,52 @@ import { buildOption } from '../chart/buildOption'
 import type { ECharts } from '../chart/echartsSetup'
 import { EXPORT_FORMATS, type ExportFormat } from '../chart/formats'
 import { PALETTES, PALETTE_NAMES } from '../chart/palettes'
-import { CHART_TYPES, defaultConfig, type ChartConfig } from '../chart/types'
+import {
+  RANGE_COLORS,
+  cropMode,
+  normalizeConfig,
+  parseBound,
+  xIsNumericAxis,
+} from '../chart/ranges'
+import {
+  CHART_TYPES,
+  defaultConfig,
+  type ChartConfig,
+  type ColorRange,
+  type RangeAxis,
+} from '../chart/types'
 import { useIsDark } from '../useIsDark'
 import { ChartView } from './ChartView'
 
 const MIN_DURATION_MS = 300
 const MAX_DURATION_MS = 30_000
+const RANGE_AXES: RangeAxis[] = ['y', 'x']
 
 const CARD =
   'rounded-2xl border border-slate-200 bg-white/70 shadow-sm backdrop-blur dark:border-slate-800 dark:bg-slate-900/60'
 const FIELD =
   'rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800'
+const NUMBER_FIELD = `${FIELD} w-full min-w-0 px-2`
 const ACTION =
   'rounded-full border border-slate-300 bg-white/70 px-4 py-2 text-sm font-medium shadow-sm transition hover:bg-white disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800/70 dark:hover:bg-slate-800'
 const LEGEND = 'mb-2 text-sm font-semibold'
+const SECTION = 'space-y-3 border-t border-slate-200 pt-4 dark:border-slate-800'
+const SUMMARY = 'cursor-pointer text-sm font-semibold'
+
+let rangeCounter = 0
+
+function nextRangeId(): string {
+  rangeCounter += 1
+  return `range-${rangeCounter}`
+}
+
+function segmentClass(selected: boolean): string {
+  return `rounded-lg border px-2 py-1.5 text-sm font-medium transition ${
+    selected
+      ? 'border-indigo-600 bg-indigo-600 text-white'
+      : 'border-slate-300 bg-white hover:border-indigo-400 dark:border-slate-700 dark:bg-slate-800'
+  }`
+}
 
 interface ToggleProps {
   label: string
@@ -58,13 +90,15 @@ export function ChartStudio({ dataset }: { dataset: Dataset }) {
   const numbers = new Intl.NumberFormat(i18n.language)
   const numericColumns = dataset.columns.filter((column) => column.kind === 'numeric')
   const xKind = dataset.columns.find((column) => column.name === config.xColumn)?.kind
+  const mode = cropMode(dataset, config)
+  const cropped = config.cropFrom !== null || config.cropTo !== null
   const busy = progress !== null
   const animateKey = [config.type, config.xColumn, config.yColumns.join('|'), config.stacked].join(
     ':',
   )
 
   const update = (patch: Partial<ChartConfig>) =>
-    setConfig((current) => ({ ...current, ...patch }))
+    setConfig((current) => normalizeConfig(dataset, current, { ...current, ...patch }))
 
   const toggleY = (name: string) =>
     update({
@@ -72,6 +106,27 @@ export function ChartStudio({ dataset }: { dataset: Dataset }) {
         ? config.yColumns.filter((item) => item !== name)
         : [...config.yColumns, name],
     })
+
+  const addRange = () =>
+    update({
+      ranges: [
+        ...config.ranges,
+        {
+          id: nextRangeId(),
+          from: null,
+          to: null,
+          color: RANGE_COLORS[config.ranges.length % RANGE_COLORS.length] ?? '#ef4444',
+        },
+      ],
+    })
+
+  const updateRange = (id: string, patch: Partial<ColorRange>) =>
+    update({
+      ranges: config.ranges.map((range) => (range.id === id ? { ...range, ...patch } : range)),
+    })
+
+  const removeRange = (id: string) =>
+    update({ ranges: config.ranges.filter((range) => range.id !== id) })
 
   const runExport = async () => {
     if (!chart || !option) return
@@ -94,12 +149,10 @@ export function ChartStudio({ dataset }: { dataset: Dataset }) {
     }
   }
 
-  const hint =
-    config.yColumns.length === 0
-      ? t('studio.needNumeric')
-      : config.type === 'scatter' && xKind !== 'numeric'
-        ? t('studio.scatterNeedsNumericX')
-        : t('studio.noData')
+  let hint = t('studio.noData')
+  if (config.yColumns.length === 0) hint = t('studio.needNumeric')
+  else if (config.type === 'scatter' && xKind !== 'numeric') hint = t('studio.scatterNeedsNumericX')
+  else if (cropped) hint = t('studio.crop.empty')
 
   return (
     <section className="grid gap-6 lg:grid-cols-[20rem_1fr]">
@@ -115,11 +168,7 @@ export function ChartStudio({ dataset }: { dataset: Dataset }) {
                 type="button"
                 aria-pressed={config.type === type}
                 onClick={() => update({ type })}
-                className={`rounded-lg border px-2 py-1.5 text-sm font-medium transition ${
-                  config.type === type
-                    ? 'border-indigo-600 bg-indigo-600 text-white'
-                    : 'border-slate-300 bg-white hover:border-indigo-400 dark:border-slate-700 dark:bg-slate-800'
-                }`}
+                className={segmentClass(config.type === type)}
               >
                 {t(`studio.types.${type}`)}
               </button>
@@ -185,6 +234,119 @@ export function ChartStudio({ dataset }: { dataset: Dataset }) {
             ))}
           </div>
         </fieldset>
+
+        <details open className={SECTION}>
+          <summary className={SUMMARY}>{t('studio.ranges.title')}</summary>
+          {config.type === 'pie' ? (
+            <p className="mt-3 text-sm text-slate-500">{t('studio.ranges.notForPie')}</p>
+          ) : (
+            <div className="mt-3 space-y-3">
+              <fieldset>
+                <legend className={LEGEND}>{t('studio.ranges.by')}</legend>
+                <div className="grid grid-cols-2 gap-2">
+                  {RANGE_AXES.map((axis) => (
+                    <button
+                      key={axis}
+                      type="button"
+                      aria-pressed={config.rangeAxis === axis}
+                      onClick={() => update({ rangeAxis: axis })}
+                      className={segmentClass(config.rangeAxis === axis)}
+                    >
+                      {t(axis === 'x' ? 'studio.ranges.byX' : 'studio.ranges.byY')}
+                    </button>
+                  ))}
+                </div>
+              </fieldset>
+              {config.rangeAxis === 'x' && !xIsNumericAxis(dataset, config) && (
+                <p className="text-sm text-amber-600 dark:text-amber-400">
+                  {t('studio.ranges.xUnavailable')}
+                </p>
+              )}
+              {config.ranges.map((range) => (
+                <div key={range.id} className="grid grid-cols-[1fr_1fr_auto_auto] items-center gap-2">
+                  <input
+                    type="number"
+                    step="any"
+                    aria-label={t('studio.ranges.from')}
+                    value={range.from ?? ''}
+                    onChange={(event) =>
+                      updateRange(range.id, { from: parseBound(event.target.value) })
+                    }
+                    className={NUMBER_FIELD}
+                  />
+                  <input
+                    type="number"
+                    step="any"
+                    aria-label={t('studio.ranges.to')}
+                    value={range.to ?? ''}
+                    onChange={(event) => updateRange(range.id, { to: parseBound(event.target.value) })}
+                    className={NUMBER_FIELD}
+                  />
+                  <input
+                    type="color"
+                    aria-label={t('studio.ranges.color')}
+                    value={range.color}
+                    onChange={(event) => updateRange(range.id, { color: event.target.value })}
+                    className="h-9 w-10 cursor-pointer rounded-lg border border-slate-300 bg-transparent p-0.5 dark:border-slate-700"
+                  />
+                  <button
+                    type="button"
+                    aria-label={t('studio.ranges.remove')}
+                    onClick={() => removeRange(range.id)}
+                    className="rounded-full px-2 text-lg leading-none text-slate-500 hover:text-rose-600"
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+              <button type="button" onClick={addRange} className={ACTION}>
+                {t('studio.ranges.add')}
+              </button>
+            </div>
+          )}
+        </details>
+
+        <details open className={SECTION}>
+          <summary className={SUMMARY}>{t('studio.crop.title')}</summary>
+          <div className="mt-3 space-y-3">
+            <p className="text-xs text-slate-500">
+              {t(mode === 'x' ? 'studio.crop.helpX' : 'studio.crop.helpRows')}
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <input
+                type="number"
+                step="any"
+                aria-label={t(mode === 'x' ? 'studio.crop.xFrom' : 'studio.crop.rowFrom')}
+                value={config.cropFrom ?? ''}
+                onChange={(event) => update({ cropFrom: parseBound(event.target.value) })}
+                className={NUMBER_FIELD}
+              />
+              <input
+                type="number"
+                step="any"
+                aria-label={t(mode === 'x' ? 'studio.crop.xTo' : 'studio.crop.rowTo')}
+                value={config.cropTo ?? ''}
+                onChange={(event) => update({ cropTo: parseBound(event.target.value) })}
+                className={NUMBER_FIELD}
+              />
+            </div>
+            <button
+              type="button"
+              disabled={!cropped}
+              onClick={() => update({ cropFrom: null, cropTo: null })}
+              className={ACTION}
+            >
+              {t('studio.crop.reset')}
+            </button>
+            {config.type !== 'pie' && (
+              <Toggle
+                label={t('studio.crop.zoomSlider')}
+                checked={config.zoomSlider}
+                onChange={(zoomSlider) => update({ zoomSlider })}
+              />
+            )}
+          </div>
+        </details>
 
         <div className="space-y-2">
           {(config.type === 'line' || config.type === 'area') && (
@@ -254,7 +416,9 @@ export function ChartStudio({ dataset }: { dataset: Dataset }) {
               className={`${ACTION} whitespace-nowrap`}
             >
               {busy && format === 'webm'
-                ? t('studio.recording', { percent: numbers.format(Math.round((progress ?? 0) * 100)) })
+                ? t('studio.recording', {
+                    percent: numbers.format(Math.round((progress ?? 0) * 100)),
+                  })
                 : t('studio.export')}
             </button>
           </div>
@@ -271,6 +435,7 @@ export function ChartStudio({ dataset }: { dataset: Dataset }) {
           <ChartView
             option={option}
             animateKey={animateKey}
+            animationMs={config.animate ? config.durationMs : 0}
             dark={dark}
             replayToken={replayToken}
             label={t('studio.chartLabel')}
