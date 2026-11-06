@@ -65,3 +65,41 @@ it('offers image, vector and video export formats', () => {
 
   expect(formats).toHaveLength(4)
 })
+
+it('adds and removes a colour range', () => {
+  render(<ChartStudio dataset={dataset} />)
+
+  fireEvent.click(screen.getByRole('button', { name: 'Add range' }))
+  expect(screen.getByLabelText('From')).toBeInTheDocument()
+  expect(screen.getByLabelText('To')).toBeInTheDocument()
+
+  fireEvent.click(screen.getByRole('button', { name: 'Remove range' }))
+  expect(screen.queryByLabelText('From')).not.toBeInTheDocument()
+})
+
+it('warns when X ranges are not possible for the chosen X column', () => {
+  render(<ChartStudio dataset={dataset} />)
+
+  fireEvent.click(screen.getByRole('button', { name: 'X axis' }))
+
+  expect(
+    screen.getByText('Ranges on the X axis need a number column on a line, area or scatter chart.'),
+  ).toBeInTheDocument()
+})
+
+it('counts rows when cropping a chart whose X column is not a number', () => {
+  render(<ChartStudio dataset={dataset} />)
+
+  expect(screen.getByRole('button', { name: 'Show everything' })).toBeDisabled()
+  fireEvent.change(screen.getByLabelText('Rows from'), { target: { value: '2' } })
+
+  expect(screen.getByRole('button', { name: 'Show everything' })).toBeEnabled()
+})
+
+it('says so when the crop leaves nothing to draw', () => {
+  render(<ChartStudio dataset={dataset} />)
+
+  fireEvent.change(screen.getByLabelText('Rows from'), { target: { value: '99' } })
+
+  expect(screen.getByRole('status')).toHaveTextContent('No rows fall inside this range.')
+})

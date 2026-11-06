@@ -3,9 +3,13 @@ import { useEffect, useRef } from 'react'
 import type { ChartOption } from '../chart/buildOption'
 import { echarts, toEChartsOption, type ECharts } from '../chart/echartsSetup'
 
+// A little extra time after the last frame before edits are applied instantly again.
+const SETTLE_MS = 300
+
 interface ChartViewProps {
   option: ChartOption
   animateKey: string
+  animationMs: number
   dark: boolean
   replayToken: number
   label: string
@@ -15,6 +19,7 @@ interface ChartViewProps {
 export function ChartView({
   option,
   animateKey,
+  animationMs,
   dark,
   replayToken,
   label,
@@ -23,9 +28,11 @@ export function ChartView({
   const containerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<ECharts | null>(null)
   const optionRef = useRef(option)
+  const animationMsRef = useRef(animationMs)
   const themeRef = useRef<boolean | null>(null)
   const skipAnimationRef = useRef(false)
   const drawnRef = useRef<{ chart: ECharts; key: string } | null>(null)
+  const animatingUntilRef = useRef(0)
 
   useEffect(() => {
     const container = containerRef.current
@@ -46,25 +53,36 @@ export function ChartView({
     }
   }, [dark, onReady])
 
-  // Only a new chart or a new animateKey plays the animation. Small edits such as a new
-  // title or colour are applied at once, so a long animation does not restart for each one.
+  // A new chart, a new animateKey, or any edit made while an animation is still playing starts
+  // the animation again from the beginning, so it always runs to the end. Edits made after it
+  // has finished (a new title or colour) are applied at once without playing it again.
   useEffect(() => {
     optionRef.current = option
+    animationMsRef.current = animationMs
     const chart = chartRef.current
     if (!chart) return
+    const now = performance.now()
     const unchanged = drawnRef.current?.chart === chart && drawnRef.current.key === animateKey
-    const animate = !unchanged && !skipAnimationRef.current
+    const running = now < animatingUntilRef.current
+    const animate =
+      animationMs > 0 && (!unchanged || running) && !skipAnimationRef.current
     skipAnimationRef.current = false
     drawnRef.current = { chart, key: animateKey }
-    chart.setOption(toEChartsOption(animate ? option : { ...option, animation: false }), {
-      notMerge: true,
-    })
-  }, [option, animateKey, dark])
+    if (animate) {
+      animatingUntilRef.current = now + animationMs + SETTLE_MS
+      chart.clear()
+      chart.setOption(toEChartsOption(option), { notMerge: true })
+    } else {
+      animatingUntilRef.current = 0
+      chart.setOption(toEChartsOption({ ...option, animation: false }), { notMerge: true })
+    }
+  }, [option, animateKey, animationMs, dark])
 
   useEffect(() => {
     if (replayToken === 0) return
     const chart = chartRef.current
     if (!chart) return
+    animatingUntilRef.current = performance.now() + animationMsRef.current + SETTLE_MS
     chart.clear()
     chart.setOption(toEChartsOption(optionRef.current), { notMerge: true })
   }, [replayToken])
