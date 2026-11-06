@@ -1,18 +1,22 @@
-import type * as echarts from 'echarts/core'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { Dataset } from '../api'
 import { buildOption } from '../chart/buildOption'
+import type { ECharts } from '../chart/echartsSetup'
+import { EXPORT_FORMATS, type ExportFormat } from '../chart/formats'
 import { PALETTES, PALETTE_NAMES } from '../chart/palettes'
 import { CHART_TYPES, defaultConfig, type ChartConfig } from '../chart/types'
 import { useIsDark } from '../useIsDark'
 import { ChartView } from './ChartView'
 
+const MIN_DURATION_MS = 300
+const MAX_DURATION_MS = 30_000
+
 const CARD =
   'rounded-2xl border border-slate-200 bg-white/70 shadow-sm backdrop-blur dark:border-slate-800 dark:bg-slate-900/60'
 const FIELD =
-  'w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800'
+  'rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800'
 const ACTION =
   'rounded-full border border-slate-300 bg-white/70 px-4 py-2 text-sm font-medium shadow-sm transition hover:bg-white disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800/70 dark:hover:bg-slate-800'
 const LEGEND = 'mb-2 text-sm font-semibold'
@@ -42,7 +46,10 @@ export function ChartStudio({ dataset }: { dataset: Dataset }) {
   const dark = useIsDark()
   const [config, setConfig] = useState(() => defaultConfig(dataset))
   const [replayToken, setReplayToken] = useState(0)
-  const [chart, setChart] = useState<echarts.ECharts | null>(null)
+  const [chart, setChart] = useState<ECharts | null>(null)
+  const [format, setFormat] = useState<ExportFormat>('png')
+  const [progress, setProgress] = useState<number | null>(null)
+  const [exportError, setExportError] = useState<string | null>(null)
 
   const option = useMemo(
     () => buildOption({ dataset, config, language: i18n.language }),
@@ -51,6 +58,10 @@ export function ChartStudio({ dataset }: { dataset: Dataset }) {
   const numbers = new Intl.NumberFormat(i18n.language)
   const numericColumns = dataset.columns.filter((column) => column.kind === 'numeric')
   const xKind = dataset.columns.find((column) => column.name === config.xColumn)?.kind
+  const busy = progress !== null
+  const animateKey = [config.type, config.xColumn, config.yColumns.join('|'), config.stacked].join(
+    ':',
+  )
 
   const update = (patch: Partial<ChartConfig>) =>
     setConfig((current) => ({ ...current, ...patch }))
@@ -62,16 +73,25 @@ export function ChartStudio({ dataset }: { dataset: Dataset }) {
         : [...config.yColumns, name],
     })
 
-  const download = () => {
-    if (!chart) return
-    const link = document.createElement('a')
-    link.href = chart.getDataURL({
-      type: 'png',
-      pixelRatio: 2,
-      backgroundColor: dark ? '#0f172a' : '#ffffff',
-    })
-    link.download = `${config.title || 'chart'}.png`
-    link.click()
+  const runExport = async () => {
+    if (!chart || !option) return
+    setExportError(null)
+    setProgress(0)
+    try {
+      const { exportChart } = await import('../chart/exportChart')
+      await exportChart(format, {
+        chart,
+        option,
+        title: config.title,
+        dark,
+        durationMs: config.durationMs,
+        onProgress: setProgress,
+      })
+    } catch (error) {
+      setExportError(error instanceof Error ? error.message : String(error))
+    } finally {
+      setProgress(null)
+    }
   }
 
   const hint =
@@ -112,7 +132,7 @@ export function ChartStudio({ dataset }: { dataset: Dataset }) {
           <select
             value={config.xColumn}
             onChange={(event) => update({ xColumn: event.target.value })}
-            className={FIELD}
+            className={`${FIELD} w-full`}
           >
             {dataset.columns.map((column) => (
               <option key={column.name} value={column.name}>
@@ -140,7 +160,7 @@ export function ChartStudio({ dataset }: { dataset: Dataset }) {
             type="text"
             value={config.title}
             onChange={(event) => update({ title: event.target.value })}
-            className={FIELD}
+            className={`${FIELD} w-full`}
           />
         </label>
 
@@ -194,8 +214,8 @@ export function ChartStudio({ dataset }: { dataset: Dataset }) {
           </span>
           <input
             type="range"
-            min={300}
-            max={3000}
+            min={MIN_DURATION_MS}
+            max={MAX_DURATION_MS}
             step={100}
             value={config.durationMs}
             disabled={!config.animate}
@@ -204,32 +224,63 @@ export function ChartStudio({ dataset }: { dataset: Dataset }) {
           />
         </label>
 
-        <div className="flex flex-wrap gap-2">
+        <div className="space-y-3">
           <button
             type="button"
-            disabled={!config.animate || option === null}
+            disabled={!config.animate || option === null || busy}
             onClick={() => setReplayToken((token) => token + 1)}
             className={ACTION}
           >
             {t('studio.replay')}
           </button>
-          <button type="button" disabled={chart === null} onClick={download} className={ACTION}>
-            {t('studio.download')}
-          </button>
+          <div className="flex gap-2">
+            <select
+              aria-label={t('studio.formatLabel')}
+              value={format}
+              disabled={busy}
+              onChange={(event) => setFormat(event.target.value as ExportFormat)}
+              className={`${FIELD} min-w-0 flex-1`}
+            >
+              {EXPORT_FORMATS.map((item) => (
+                <option key={item} value={item}>
+                  {t(`studio.formats.${item}`)}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              disabled={chart === null || option === null || busy}
+              onClick={() => void runExport()}
+              className={`${ACTION} whitespace-nowrap`}
+            >
+              {busy && format === 'webm'
+                ? t('studio.recording', { percent: numbers.format(Math.round((progress ?? 0) * 100)) })
+                : t('studio.export')}
+            </button>
+          </div>
+          {exportError && (
+            <p role="alert" className="text-sm text-rose-600 dark:text-rose-400">
+              {t('studio.exportFailed')} {exportError}
+            </p>
+          )}
         </div>
       </aside>
 
-      <div className={`${CARD} p-4`}>
+      <div className={`${CARD} flex p-4`}>
         {option ? (
           <ChartView
             option={option}
+            animateKey={animateKey}
             dark={dark}
             replayToken={replayToken}
             label={t('studio.chartLabel')}
             onReady={setChart}
           />
         ) : (
-          <p role="status" className="grid h-112 place-items-center px-6 text-center text-slate-500">
+          <p
+            role="status"
+            className="grid min-h-112 flex-1 place-items-center px-6 text-center text-slate-500"
+          >
             {hint}
           </p>
         )}

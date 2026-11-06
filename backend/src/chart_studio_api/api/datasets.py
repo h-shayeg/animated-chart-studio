@@ -2,7 +2,7 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 
 from chart_studio_api.config import Settings, get_settings
 from chart_studio_api.schemas import DatasetTable
@@ -15,6 +15,7 @@ router = APIRouter(prefix="/api/v1/datasets", tags=["datasets"])
 def parse_dataset(
     file: Annotated[UploadFile, File()],
     settings: Annotated[Settings, Depends(get_settings)],
+    header: Annotated[bool, Form()] = True,
 ) -> DatasetTable:
     content = file.file.read(settings.max_upload_bytes + 1)
     if len(content) > settings.max_upload_bytes:
@@ -22,7 +23,7 @@ def parse_dataset(
 
     filename = file.filename or "upload"
     try:
-        table = read_table(filename, content)
+        table = read_table(filename, content, header=header)
     except DatasetError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
