@@ -1,51 +1,38 @@
-import { BarChart, LineChart, PieChart, ScatterChart } from 'echarts/charts'
-import {
-  GridComponent,
-  LegendComponent,
-  TitleComponent,
-  TooltipComponent,
-} from 'echarts/components'
-import * as echarts from 'echarts/core'
-import { CanvasRenderer } from 'echarts/renderers'
 import { useEffect, useRef } from 'react'
 
 import type { ChartOption } from '../chart/buildOption'
-
-echarts.use([
-  BarChart,
-  LineChart,
-  PieChart,
-  ScatterChart,
-  GridComponent,
-  LegendComponent,
-  TitleComponent,
-  TooltipComponent,
-  CanvasRenderer,
-])
-
-type EChartsOption = Parameters<echarts.ECharts['setOption']>[0]
-
-// The option is assembled from plain objects, so it is cast to the library type once, here.
-function toEChartsOption(option: ChartOption): EChartsOption {
-  return option as unknown as EChartsOption
-}
+import { echarts, toEChartsOption, type ECharts } from '../chart/echartsSetup'
 
 interface ChartViewProps {
   option: ChartOption
+  animateKey: string
   dark: boolean
   replayToken: number
   label: string
-  onReady: (chart: echarts.ECharts | null) => void
+  onReady: (chart: ECharts | null) => void
 }
 
-export function ChartView({ option, dark, replayToken, label, onReady }: ChartViewProps) {
+export function ChartView({
+  option,
+  animateKey,
+  dark,
+  replayToken,
+  label,
+  onReady,
+}: ChartViewProps) {
   const containerRef = useRef<HTMLDivElement>(null)
-  const chartRef = useRef<echarts.ECharts | null>(null)
+  const chartRef = useRef<ECharts | null>(null)
   const optionRef = useRef(option)
+  const themeRef = useRef<boolean | null>(null)
+  const skipAnimationRef = useRef(false)
+  const drawnRef = useRef<{ chart: ECharts; key: string } | null>(null)
 
   useEffect(() => {
     const container = containerRef.current
     if (!container) return
+    // A theme switch redraws the chart at once, while a first draw plays the animation.
+    skipAnimationRef.current = themeRef.current !== null && themeRef.current !== dark
+    themeRef.current = dark
     const chart = echarts.init(container, dark ? 'dark' : undefined)
     chartRef.current = chart
     onReady(chart)
@@ -59,10 +46,20 @@ export function ChartView({ option, dark, replayToken, label, onReady }: ChartVi
     }
   }, [dark, onReady])
 
+  // Only a new chart or a new animateKey plays the animation. Small edits such as a new
+  // title or colour are applied at once, so a long animation does not restart for each one.
   useEffect(() => {
     optionRef.current = option
-    chartRef.current?.setOption(toEChartsOption(option), { notMerge: true })
-  }, [option, dark])
+    const chart = chartRef.current
+    if (!chart) return
+    const unchanged = drawnRef.current?.chart === chart && drawnRef.current.key === animateKey
+    const animate = !unchanged && !skipAnimationRef.current
+    skipAnimationRef.current = false
+    drawnRef.current = { chart, key: animateKey }
+    chart.setOption(toEChartsOption(animate ? option : { ...option, animation: false }), {
+      notMerge: true,
+    })
+  }, [option, animateKey, dark])
 
   useEffect(() => {
     if (replayToken === 0) return
@@ -72,5 +69,9 @@ export function ChartView({ option, dark, replayToken, label, onReady }: ChartVi
     chart.setOption(toEChartsOption(optionRef.current), { notMerge: true })
   }, [replayToken])
 
-  return <div ref={containerRef} role="img" aria-label={label} className="h-112 w-full" />
+  return (
+    <div className="relative min-h-112 w-full flex-1">
+      <div ref={containerRef} role="img" aria-label={label} className="absolute inset-0" />
+    </div>
+  )
 }

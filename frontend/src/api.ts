@@ -40,9 +40,10 @@ async function readDetail(response: Response): Promise<string | undefined> {
   return undefined
 }
 
-export async function parseDataset(file: File): Promise<Dataset> {
+export async function parseDataset(file: File, header = true): Promise<Dataset> {
   const body = new FormData()
   body.append('file', file)
+  body.append('header', String(header))
 
   const response = await fetch('/api/v1/datasets/parse', { method: 'POST', body })
   if (!response.ok) {

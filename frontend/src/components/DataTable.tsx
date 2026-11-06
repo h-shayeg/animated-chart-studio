@@ -21,6 +21,8 @@ function formatCell(value: unknown, kind: ColumnKind, formatter: Intl.NumberForm
 export function DataTable({ dataset }: { dataset: Dataset }) {
   const { t, i18n } = useTranslation()
   const reset = useDatasetStore((state) => state.reset)
+  const header = useDatasetStore((state) => state.header)
+  const setHeader = useDatasetStore((state) => state.setHeader)
   const formatter = new Intl.NumberFormat(i18n.language)
   const visibleRows = dataset.data.slice(0, MAX_VISIBLE_ROWS)
 
@@ -34,13 +36,24 @@ export function DataTable({ dataset }: { dataset: Dataset }) {
             {t('table.columns', { count: dataset.columns.length })}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={reset}
-          className="rounded-full border border-slate-300 bg-white/70 px-4 py-2 text-sm font-medium shadow-sm transition hover:bg-white dark:border-slate-700 dark:bg-slate-800/70 dark:hover:bg-slate-800"
-        >
-          {t('table.replace')}
-        </button>
+        <div className="flex flex-wrap items-center gap-4">
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={header}
+              onChange={(event) => void setHeader(event.target.checked)}
+              className="size-4 accent-indigo-600"
+            />
+            {t('table.firstRowHeader')}
+          </label>
+          <button
+            type="button"
+            onClick={reset}
+            className="rounded-full border border-slate-300 bg-white/70 px-4 py-2 text-sm font-medium shadow-sm transition hover:bg-white dark:border-slate-700 dark:bg-slate-800/70 dark:hover:bg-slate-800"
+          >
+            {t('table.replace')}
+          </button>
+        </div>
       </div>
 
       <div className="max-h-128 overflow-auto rounded-2xl border border-slate-200 bg-white/70 shadow-sm backdrop-blur dark:border-slate-800 dark:bg-slate-900/60">

@@ -24,7 +24,10 @@ export function defaultConfig(dataset: Dataset): ChartConfig {
     dataset.columns[0]
   const xColumn = firstX?.name ?? ''
   const yColumns = dataset.columns
-    .filter((column) => column.kind === 'numeric' && column.name !== xColumn)
+    .filter(
+      (column) =>
+        column.kind === 'numeric' && column.name !== xColumn && column.missing < dataset.rows,
+    )
     .slice(0, 3)
     .map((column) => column.name)
 

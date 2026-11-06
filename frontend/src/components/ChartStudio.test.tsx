@@ -51,3 +51,17 @@ it('asks for a number column on the X axis of a scatter chart', () => {
 
   expect(screen.getByRole('status')).toHaveTextContent('needs a number column')
 })
+
+it('allows animations as long as thirty seconds', () => {
+  render(<ChartStudio dataset={dataset} />)
+
+  expect(screen.getByRole('slider')).toHaveAttribute('max', '30000')
+})
+
+it('offers image, vector and video export formats', () => {
+  render(<ChartStudio dataset={dataset} />)
+
+  const formats = screen.getAllByRole('option', { name: /PNG|JPEG|SVG|WebM/ })
+
+  expect(formats).toHaveLength(4)
+})

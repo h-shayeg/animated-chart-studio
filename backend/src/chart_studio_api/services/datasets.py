@@ -16,18 +16,22 @@ class DatasetError(ValueError):
     """Raised when an uploaded file cannot be turned into a usable table."""
 
 
-def read_table(filename: str, content: bytes) -> pd.DataFrame:
+def read_table(filename: str, content: bytes, *, header: bool = True) -> pd.DataFrame:
     suffix = PurePath(filename).suffix.lower()
+    header_row = 0 if header else None
     if suffix == ".csv":
-        table = _read_csv(content)
+        table = _read_csv(content, header_row)
     elif suffix == ".xlsx":
-        table = _read_xlsx(content)
+        table = _read_xlsx(content, header_row)
     else:
         raise DatasetError("Unsupported file type. Please upload a .csv or .xlsx file.")
 
     if table.empty:
         raise DatasetError("The file does not contain any data rows.")
-    table.columns = [str(name) for name in table.columns]
+    if header:
+        table.columns = [str(name) for name in table.columns]
+    else:
+        table.columns = [f"Column {number}" for number in range(1, len(table.columns) + 1)]
     return table
 
 
@@ -37,10 +41,12 @@ def describe_table(filename: str, table: pd.DataFrame) -> DatasetTable:
     return DatasetTable(filename=filename, rows=len(table), columns=columns, data=data)
 
 
-def _read_csv(content: bytes) -> pd.DataFrame:
+def _read_csv(content: bytes, header: int | None) -> pd.DataFrame:
     for encoding in CSV_ENCODINGS:
         try:
-            return pd.read_csv(BytesIO(content), sep=None, engine="python", encoding=encoding)
+            return pd.read_csv(
+                BytesIO(content), sep=None, engine="python", encoding=encoding, header=header
+            )
         except UnicodeDecodeError:
             continue
         except (csv.Error, pd.errors.EmptyDataError, pd.errors.ParserError) as exc:
@@ -48,9 +54,9 @@ def _read_csv(content: bytes) -> pd.DataFrame:
     raise DatasetError("The CSV file encoding is not supported.")
 
 
-def _read_xlsx(content: bytes) -> pd.DataFrame:
+def _read_xlsx(content: bytes, header: int | None) -> pd.DataFrame:
     try:
-        return pd.read_excel(BytesIO(content), engine="openpyxl")
+        return pd.read_excel(BytesIO(content), engine="openpyxl", header=header)
     except Exception as exc:
         raise DatasetError("The Excel file could not be read.") from exc
 
