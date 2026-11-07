@@ -80,8 +80,6 @@ it('adds and removes a colour range', () => {
 it('warns when X ranges are not possible for the chosen X column', () => {
   render(<ChartStudio dataset={dataset} />)
 
-  fireEvent.click(screen.getByRole('button', { name: 'X axis' }))
-
   expect(
     screen.getByText('Ranges on the X axis need a number column on a line, area or scatter chart.'),
   ).toBeInTheDocument()

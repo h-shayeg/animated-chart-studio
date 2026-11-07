@@ -5,12 +5,14 @@ import type { Dataset } from '../api'
 import { buildOption } from '../chart/buildOption'
 import type { ECharts } from '../chart/echartsSetup'
 import { EXPORT_FORMATS, type ExportFormat } from '../chart/formats'
+import { magnifierStatus, placementLimits, placementOf } from '../chart/magnifier'
 import { PALETTES, PALETTE_NAMES } from '../chart/palettes'
 import {
   RANGE_COLORS,
   cropMode,
   normalizeConfig,
   parseBound,
+  rangesOf,
   xIsNumericAxis,
 } from '../chart/ranges'
 import {
@@ -18,14 +20,56 @@ import {
   defaultConfig,
   type ChartConfig,
   type ColorRange,
+  type Magnifier,
   type RangeAxis,
 } from '../chart/types'
 import { useIsDark } from '../useIsDark'
+import { ChartBoundary } from './ChartBoundary'
 import { ChartView } from './ChartView'
 
 const MIN_DURATION_MS = 300
 const MAX_DURATION_MS = 30_000
+const MAX_DELAY_MS = 10_000
 const RANGE_AXES: RangeAxis[] = ['y', 'x']
+const REST_COLOR = '#94a3b8'
+const MIN_HEIGHT_PX = 240
+const MAX_HEIGHT_PX = 1600
+// Without a chosen height the chart fits the screen, leaving room for the page around it.
+const AUTO_HEIGHT = 'clamp(20rem, calc(100svh - 9rem), 52rem)'
+const MAGNIFIER_FIELDS = [
+  { key: 'xFrom', hint: 'hintStart' },
+  { key: 'xTo', hint: 'hintEnd' },
+  { key: 'yFrom', hint: 'hintAuto' },
+  { key: 'yTo', hint: 'hintAuto' },
+] as const
+const MAGNIFIER_MESSAGES = {
+  unavailable: 'studio.magnifier.unavailable',
+  needsRange: 'studio.magnifier.needsRange',
+  empty: 'studio.magnifier.empty',
+} as const
+
+const BOX_FIELDS = [
+  {
+    label: 'boxLeft',
+    limit: 'left',
+    patch: (value: number): Partial<Magnifier> => ({ boxLeft: value }),
+  },
+  {
+    label: 'boxTop',
+    limit: 'top',
+    patch: (value: number): Partial<Magnifier> => ({ boxTop: value }),
+  },
+  {
+    label: 'boxWidth',
+    limit: 'width',
+    patch: (value: number): Partial<Magnifier> => ({ boxWidth: value }),
+  },
+  {
+    label: 'boxHeight',
+    limit: 'height',
+    patch: (value: number): Partial<Magnifier> => ({ boxHeight: value }),
+  },
+] as const
 
 const CARD =
   'rounded-2xl border border-slate-200 bg-white/70 shadow-sm backdrop-blur dark:border-slate-800 dark:bg-slate-900/60'
@@ -82,6 +126,7 @@ export function ChartStudio({ dataset }: { dataset: Dataset }) {
   const [format, setFormat] = useState<ExportFormat>('png')
   const [progress, setProgress] = useState<number | null>(null)
   const [exportError, setExportError] = useState<string | null>(null)
+  const [heightPx, setHeightPx] = useState<number | null>(null)
 
   const option = useMemo(
     () => buildOption({ dataset, config, language: i18n.language }),
@@ -93,12 +138,32 @@ export function ChartStudio({ dataset }: { dataset: Dataset }) {
   const mode = cropMode(dataset, config)
   const cropped = config.cropFrom !== null || config.cropTo !== null
   const busy = progress !== null
-  const animateKey = [config.type, config.xColumn, config.yColumns.join('|'), config.stacked].join(
-    ':',
+  const chartHeight =
+    heightPx === null
+      ? AUTO_HEIGHT
+      : `${Math.min(Math.max(heightPx, MIN_HEIGHT_PX), MAX_HEIGHT_PX)}px`
+  const magnifierState = useMemo(() => magnifierStatus(dataset, config), [dataset, config])
+  const placement = placementOf(config.magnifier)
+  const limits = placementLimits(placement)
+  // The animation of the enlarged view may last longer than the one of the main chart.
+  const insetAnimates = magnifierState === 'ready' && config.magnifier.animate
+  const totalAnimationMs = Math.max(
+    config.animate ? config.durationMs : 0,
+    insetAnimates ? config.magnifier.delayMs + config.magnifier.durationMs : 0,
   )
+  const animateKey = [
+    config.type,
+    config.xColumn,
+    config.yColumns.join('|'),
+    config.stacked,
+    config.magnifier.enabled,
+  ].join(':')
 
   const update = (patch: Partial<ChartConfig>) =>
     setConfig((current) => normalizeConfig(dataset, current, { ...current, ...patch }))
+
+  const patchMagnifier = (patch: Partial<Magnifier>) =>
+    update({ magnifier: { ...config.magnifier, ...patch } })
 
   const toggleY = (name: string) =>
     update({
@@ -107,7 +172,7 @@ export function ChartStudio({ dataset }: { dataset: Dataset }) {
         : [...config.yColumns, name],
     })
 
-  const addRange = () =>
+  const addRange = (axis: RangeAxis) =>
     update({
       ranges: [
         ...config.ranges,
@@ -115,6 +180,7 @@ export function ChartStudio({ dataset }: { dataset: Dataset }) {
           id: nextRangeId(),
           from: null,
           to: null,
+          axis,
           color: RANGE_COLORS[config.ranges.length % RANGE_COLORS.length] ?? '#ef4444',
         },
       ],
@@ -139,7 +205,7 @@ export function ChartStudio({ dataset }: { dataset: Dataset }) {
         option,
         title: config.title,
         dark,
-        durationMs: config.durationMs,
+        durationMs: totalAnimationMs,
         onProgress: setProgress,
       })
     } catch (error) {
@@ -240,68 +306,92 @@ export function ChartStudio({ dataset }: { dataset: Dataset }) {
           {config.type === 'pie' ? (
             <p className="mt-3 text-sm text-slate-500">{t('studio.ranges.notForPie')}</p>
           ) : (
-            <div className="mt-3 space-y-3">
-              <fieldset>
-                <legend className={LEGEND}>{t('studio.ranges.by')}</legend>
-                <div className="grid grid-cols-2 gap-2">
-                  {RANGE_AXES.map((axis) => (
-                    <button
-                      key={axis}
-                      type="button"
-                      aria-pressed={config.rangeAxis === axis}
-                      onClick={() => update({ rangeAxis: axis })}
-                      className={segmentClass(config.rangeAxis === axis)}
-                    >
-                      {t(axis === 'x' ? 'studio.ranges.byX' : 'studio.ranges.byY')}
-                    </button>
-                  ))}
-                </div>
-              </fieldset>
-              {config.rangeAxis === 'x' && !xIsNumericAxis(dataset, config) && (
-                <p className="text-sm text-amber-600 dark:text-amber-400">
-                  {t('studio.ranges.xUnavailable')}
-                </p>
-              )}
-              {config.ranges.map((range) => (
-                <div key={range.id} className="grid grid-cols-[1fr_1fr_auto_auto] items-center gap-2">
-                  <input
-                    type="number"
-                    step="any"
-                    aria-label={t('studio.ranges.from')}
-                    value={range.from ?? ''}
-                    onChange={(event) =>
-                      updateRange(range.id, { from: parseBound(event.target.value) })
-                    }
-                    className={NUMBER_FIELD}
-                  />
-                  <input
-                    type="number"
-                    step="any"
-                    aria-label={t('studio.ranges.to')}
-                    value={range.to ?? ''}
-                    onChange={(event) => updateRange(range.id, { to: parseBound(event.target.value) })}
-                    className={NUMBER_FIELD}
-                  />
-                  <input
-                    type="color"
-                    aria-label={t('studio.ranges.color')}
-                    value={range.color}
-                    onChange={(event) => updateRange(range.id, { color: event.target.value })}
-                    className="h-9 w-10 cursor-pointer rounded-lg border border-slate-300 bg-transparent p-0.5 dark:border-slate-700"
-                  />
-                  <button
-                    type="button"
-                    aria-label={t('studio.ranges.remove')}
-                    onClick={() => removeRange(range.id)}
-                    className="rounded-full px-2 text-lg leading-none text-slate-500 hover:text-rose-600"
-                  >
-                    ×
-                  </button>
-                </div>
+            <div className="mt-3 space-y-4">
+              {RANGE_AXES.map((axis) => (
+                <fieldset key={axis} className="space-y-3">
+                  <legend className={LEGEND}>
+                    {t(axis === 'x' ? 'studio.ranges.byX' : 'studio.ranges.byY')}
+                  </legend>
+                  {axis === 'x' && !xIsNumericAxis(dataset, config) ? (
+                    <p className="text-sm text-amber-600 dark:text-amber-400">
+                      {t('studio.ranges.xUnavailable')}
+                    </p>
+                  ) : (
+                    <>
+                      {rangesOf(config, axis).map((range) => (
+                        <div
+                          key={range.id}
+                          className="grid grid-cols-[1fr_1fr_auto_auto] items-center gap-2"
+                        >
+                          <input
+                            type="number"
+                            step="any"
+                            aria-label={t('studio.ranges.from')}
+                            value={range.from ?? ''}
+                            onChange={(event) =>
+                              updateRange(range.id, { from: parseBound(event.target.value) })
+                            }
+                            className={NUMBER_FIELD}
+                          />
+                          <input
+                            type="number"
+                            step="any"
+                            aria-label={t('studio.ranges.to')}
+                            value={range.to ?? ''}
+                            onChange={(event) =>
+                              updateRange(range.id, { to: parseBound(event.target.value) })
+                            }
+                            className={NUMBER_FIELD}
+                          />
+                          <input
+                            type="color"
+                            aria-label={t('studio.ranges.color')}
+                            value={range.color}
+                            onChange={(event) =>
+                              updateRange(range.id, { color: event.target.value })
+                            }
+                            className="h-9 w-10 cursor-pointer rounded-lg border border-slate-300 bg-transparent p-0.5 dark:border-slate-700"
+                          />
+                          <button
+                            type="button"
+                            aria-label={t('studio.ranges.remove')}
+                            onClick={() => removeRange(range.id)}
+                            className="rounded-full px-2 text-lg leading-none text-slate-500 hover:text-rose-600"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
+                      <button type="button" onClick={() => addRange(axis)} className={ACTION}>
+                        {t('studio.ranges.add')}
+                      </button>
+                    </>
+                  )}
+                </fieldset>
               ))}
-              <button type="button" onClick={addRange} className={ACTION}>
-                {t('studio.ranges.add')}
-              </button>
+              {xIsNumericAxis(dataset, config) &&
+                rangesOf(config, 'x').length > 0 &&
+                rangesOf(config, 'y').length > 0 && (
+                  <p className="text-xs text-slate-500">{t('studio.ranges.priority')}</p>
+                )}
+              {config.ranges.length > 0 && (
+                <div className="flex items-center justify-between gap-2">
+                  <Toggle
+                    label={t('studio.ranges.rest')}
+                    checked={config.restColor !== null}
+                    onChange={(on) => update({ restColor: on ? REST_COLOR : null })}
+                  />
+                  {config.restColor !== null && (
+                    <input
+                      type="color"
+                      aria-label={t('studio.ranges.restColor')}
+                      value={config.restColor}
+                      onChange={(event) => update({ restColor: event.target.value })}
+                      className="h-9 w-10 shrink-0 cursor-pointer rounded-lg border border-slate-300 bg-transparent p-0.5 dark:border-slate-700"
+                    />
+                  )}
+                </div>
+              )}
             </div>
           )}
         </details>
@@ -348,6 +438,120 @@ export function ChartStudio({ dataset }: { dataset: Dataset }) {
           </div>
         </details>
 
+        <details open className={SECTION}>
+          <summary className={SUMMARY}>{t('studio.magnifier.title')}</summary>
+          <div className="mt-3 space-y-3">
+            <p className="text-xs text-slate-500">{t('studio.magnifier.help')}</p>
+            <Toggle
+              label={t('studio.magnifier.enable')}
+              checked={config.magnifier.enabled}
+              onChange={(enabled) => patchMagnifier({ enabled })}
+            />
+            {config.magnifier.enabled && (
+              <>
+                <div className="grid grid-cols-2 gap-2">
+                  {MAGNIFIER_FIELDS.map((field) => (
+                    <input
+                      key={field.key}
+                      type="number"
+                      step="any"
+                      aria-label={t(`studio.magnifier.${field.key}`)}
+                      placeholder={t(`studio.magnifier.${field.hint}`)}
+                      value={config.magnifier[field.key] ?? ''}
+                      onChange={(event) =>
+                        update({
+                          magnifier: {
+                            ...config.magnifier,
+                            [field.key]: parseBound(event.target.value),
+                          },
+                        })
+                      }
+                      className={NUMBER_FIELD}
+                    />
+                  ))}
+                </div>
+                {magnifierState !== 'ready' && magnifierState !== 'off' && (
+                  <p className="text-sm text-amber-600 dark:text-amber-400">
+                    {t(MAGNIFIER_MESSAGES[magnifierState])}
+                  </p>
+                )}
+
+                <fieldset className="space-y-2">
+                  <legend className={LEGEND}>{t('studio.magnifier.box')}</legend>
+                  {BOX_FIELDS.map((field) => {
+                    const [low, high] = limits[field.limit]
+                    return (
+                      <label key={field.label} className="block text-xs">
+                        <span className="mb-1 block">
+                          {t(`studio.magnifier.${field.label}`)}:{' '}
+                          {t('studio.magnifier.percent', {
+                            value: numbers.format(Math.round(placement[field.limit])),
+                          })}
+                        </span>
+                        <input
+                          type="range"
+                          min={low}
+                          max={high}
+                          step={1}
+                          aria-label={t(`studio.magnifier.${field.label}`)}
+                          value={placement[field.limit]}
+                          onChange={(event) =>
+                            patchMagnifier(field.patch(Number(event.target.value)))
+                          }
+                          className="w-full accent-indigo-600"
+                        />
+                      </label>
+                    )
+                  })}
+                </fieldset>
+
+                <fieldset className="space-y-2">
+                  <legend className={LEGEND}>{t('studio.magnifier.animation')}</legend>
+                  <Toggle
+                    label={t('studio.magnifier.animate')}
+                    checked={config.magnifier.animate}
+                    onChange={(animate) => patchMagnifier({ animate })}
+                  />
+                  <label className="block text-xs">
+                    <span className="mb-1 block">
+                      {t('studio.magnifier.duration')}:{' '}
+                      {numbers.format(config.magnifier.durationMs / 1000)} {t('studio.seconds')}
+                    </span>
+                    <input
+                      type="range"
+                      min={MIN_DURATION_MS}
+                      max={MAX_DURATION_MS}
+                      step={100}
+                      aria-label={t('studio.magnifier.duration')}
+                      value={config.magnifier.durationMs}
+                      disabled={!config.magnifier.animate}
+                      onChange={(event) => patchMagnifier({ durationMs: Number(event.target.value) })}
+                      className="w-full accent-indigo-600"
+                    />
+                  </label>
+                  <label className="block text-xs">
+                    <span className="mb-1 block">
+                      {t('studio.magnifier.delay')}:{' '}
+                      {numbers.format(config.magnifier.delayMs / 1000)} {t('studio.seconds')}
+                    </span>
+                    <input
+                      type="range"
+                      min={0}
+                      max={MAX_DELAY_MS}
+                      step={100}
+                      aria-label={t('studio.magnifier.delay')}
+                      value={config.magnifier.delayMs}
+                      disabled={!config.magnifier.animate}
+                      onChange={(event) => patchMagnifier({ delayMs: Number(event.target.value) })}
+                      className="w-full accent-indigo-600"
+                    />
+                  </label>
+                </fieldset>
+              </>
+            )}
+          </div>
+        </details>
+
         <div className="space-y-2">
           {(config.type === 'line' || config.type === 'area') && (
             <Toggle
@@ -386,10 +590,35 @@ export function ChartStudio({ dataset }: { dataset: Dataset }) {
           />
         </label>
 
+        <div className="text-sm">
+          <span className="mb-1 block font-semibold">{t('studio.height')}</span>
+          <div className="flex gap-2">
+            <input
+              type="number"
+              min={MIN_HEIGHT_PX}
+              max={MAX_HEIGHT_PX}
+              step={20}
+              aria-label={t('studio.height')}
+              placeholder={t('studio.heightAuto')}
+              value={heightPx ?? ''}
+              onChange={(event) => setHeightPx(parseBound(event.target.value))}
+              className={NUMBER_FIELD}
+            />
+            <button
+              type="button"
+              disabled={heightPx === null}
+              onClick={() => setHeightPx(null)}
+              className={`${ACTION} whitespace-nowrap`}
+            >
+              {t('studio.heightFit')}
+            </button>
+          </div>
+        </div>
+
         <div className="space-y-3">
           <button
             type="button"
-            disabled={!config.animate || option === null || busy}
+            disabled={totalAnimationMs === 0 || option === null || busy}
             onClick={() => setReplayToken((token) => token + 1)}
             className={ACTION}
           >
@@ -430,21 +659,25 @@ export function ChartStudio({ dataset }: { dataset: Dataset }) {
         </div>
       </aside>
 
-      <div className={`${CARD} flex p-4`}>
+      <div className={`${CARD} flex min-w-0 self-start p-4 lg:sticky lg:top-20`}>
         {option ? (
-          <ChartView
-            option={option}
-            animateKey={animateKey}
-            animationMs={config.animate ? config.durationMs : 0}
-            dark={dark}
-            replayToken={replayToken}
-            label={t('studio.chartLabel')}
-            onReady={setChart}
-          />
+          <ChartBoundary resetKey={option} title={t('studio.chartFailed')}>
+            <ChartView
+              option={option}
+              animateKey={animateKey}
+              animationMs={totalAnimationMs}
+              dark={dark}
+              replayToken={replayToken}
+              label={t('studio.chartLabel')}
+              height={chartHeight}
+              onReady={setChart}
+            />
+          </ChartBoundary>
         ) : (
           <p
             role="status"
-            className="grid min-h-112 flex-1 place-items-center px-6 text-center text-slate-500"
+            style={{ height: chartHeight }}
+            className="grid flex-1 place-items-center px-6 text-center text-slate-500"
           >
             {hint}
           </p>

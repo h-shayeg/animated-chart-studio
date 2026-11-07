@@ -1,6 +1,15 @@
 import type { ColumnKind, Dataset } from '../api'
+import { applyMagnifier, magnifierStatus } from './magnifier'
 import { PALETTES } from './palettes'
-import { activeRanges, cropDataset, rangeAxisFor } from './ranges'
+import {
+  closeRanges,
+  colorLookup,
+  colorPieces,
+  cropDataset,
+  rangeAxisFor,
+  rangeExtent,
+  rangePlan,
+} from './ranges'
 import type { ChartConfig, ColorRange } from './types'
 
 export type ChartOption = Record<string, unknown>
@@ -60,7 +69,37 @@ function pieceOf(range: ColorRange): Record<string, unknown> {
   }
 }
 
-export function buildOption({ dataset: source, config, language }: BuildInput): ChartOption | null {
+type NumericPoint = [number, number | null]
+
+// A stacked series sits on top of the ones before it, so its ranges are matched against the total.
+function runningTotals(series: NumericPoint[][]): NumericPoint[][] {
+  return series.map((points, index) =>
+    points.map(([x, y], position): NumericPoint => {
+      if (y === null) return [x, null]
+      const below = series
+        .slice(0, index)
+        .reduce((sum, other) => sum + (other[position]?.[1] ?? 0), 0)
+      return [x, y + below]
+    }),
+  )
+}
+
+// The points each line is drawn through, with numbers on X, for working out its colour pieces.
+function rangePoints(
+  dataset: Dataset,
+  config: ChartConfig,
+  xKind: ColumnKind,
+  yColumns: string[],
+): NumericPoint[][] {
+  const series = yColumns.map((name) =>
+    pointsOf(dataset, config.xColumn, xKind, name).flatMap(([x, y]): NumericPoint[] =>
+      typeof x === 'number' ? [[x, y]] : [],
+    ),
+  )
+  return config.stacked && config.type === 'area' ? runningTotals(series) : series
+}
+
+function buildBaseOption({ dataset: source, config, language }: BuildInput): ChartOption | null {
   const kinds = new Map(source.columns.map((column) => [column.name, column.kind]))
   const xKind = kinds.get(config.xColumn)
   const yColumns = config.yColumns.filter((name) => kinds.get(name) === 'numeric')
@@ -147,10 +186,18 @@ export function buildOption({ dataset: source, config, language }: BuildInput): 
     ? [{ type: 'inside' }, { type: 'slider', height: 22, bottom: showLegend ? 32 : 8 }]
     : undefined
 
+  const plan = rangePlan(source, config)
+  const both = plan.x.length > 0 && plan.y.length > 0
   // One visual map per series, so a series keeps its own colour outside every range.
   const rangeAxis = rangeAxisFor(source, config)
-  const pieces = activeRanges(config).map(pieceOf)
-  const visualMap =
+  const pieces =
+    rangeAxis === null
+      ? []
+      : closeRanges(
+          plan[rangeAxis],
+          rangeExtent(dataset, config, yColumns, rangeAxis),
+        ).map(pieceOf)
+  let visualMap =
     rangeAxis === null
       ? undefined
       : yColumns.map((_, index) => ({
@@ -159,8 +206,32 @@ export function buildOption({ dataset: source, config, language }: BuildInput): 
           seriesIndex: index,
           dimension: rangeAxis === 'x' ? 0 : 1,
           pieces,
-          outOfRange: { color: palette[index % palette.length] ?? palette[0] },
+          outOfRange: { color: config.restColor ?? palette[index % palette.length] ?? palette[0] },
         }))
+
+  const rest = (index: number) => config.restColor ?? palette[index % palette.length] ?? palette[0]
+  // Ranges on X and on Y together: a scatter point is coloured by its slot in this list (0 means
+  // outside every range), and a line by stretches of X worked out from its own points.
+  const slots = [...new Set([...plan.y, ...plan.x].map((range) => range.color))]
+  const colorOf = both ? colorLookup(plan.x, plan.y) : null
+  const slotOf = (x: number, y: number): number => {
+    const color = colorOf === null ? null : colorOf(x, y)
+    return color === null ? 0 : slots.indexOf(color) + 1
+  }
+  if (both) {
+    const lines = config.type === 'scatter' ? [] : rangePoints(dataset, config, xKind, yColumns)
+    visualMap = yColumns.map((_, index) => ({
+      type: 'piecewise',
+      show: false,
+      seriesIndex: index,
+      dimension: config.type === 'scatter' ? 2 : 0,
+      pieces:
+        config.type === 'scatter'
+          ? slots.map((color, slot) => ({ value: slot + 1, color }))
+          : colorPieces(lines[index] ?? [], plan.x, plan.y),
+      outOfRange: { color: rest(index) },
+    }))
+  }
 
   const valueAxis = {
     type: 'value',
@@ -183,9 +254,17 @@ export function buildOption({ dataset: source, config, language }: BuildInput): 
         const data = dataset.data.flatMap((row) => {
           const x = toNumber(row[config.xColumn])
           const y = toNumber(row[name])
-          return x !== null && y !== null ? [[x, y]] : []
+          return x !== null && y !== null ? [colorOf === null ? [x, y] : [x, y, slotOf(x, y)]] : []
         })
-        return { name, type: 'scatter', symbolSize: 12, data, ...stagger(data.length) }
+        return {
+          name,
+          type: 'scatter',
+          symbolSize: 12,
+          data,
+          // The third value of a point, its range slot, is kept out of the tooltip.
+          ...(colorOf === null ? {} : { encode: { x: 0, y: 1, tooltip: [0, 1] } }),
+          ...stagger(data.length),
+        }
       }),
     }
   }
@@ -232,4 +311,11 @@ export function buildOption({ dataset: source, config, language }: BuildInput): 
       ...(config.type === 'bar' ? stagger(rows) : {}),
     })),
   }
+}
+
+// The magnifier is added on top of the finished chart, so the code above stays as it was.
+export function buildOption(input: BuildInput): ChartOption | null {
+  const option = buildBaseOption(input)
+  if (option === null || magnifierStatus(input.dataset, input.config) !== 'ready') return option
+  return applyMagnifier(option, input.config, new Intl.NumberFormat(input.language))
 }
