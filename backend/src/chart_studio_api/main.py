@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 
-from chart_studio_api.api import analysis, datasets, health
+from chart_studio_api.api import analysis, datasets, health, xrd
 from chart_studio_api.config import get_settings
 
 
@@ -10,6 +10,7 @@ def create_app() -> FastAPI:
     app.include_router(health.router)
     app.include_router(datasets.router)
     app.include_router(analysis.router)
+    app.include_router(xrd.router)
     return app
 
 

@@ -12,7 +12,9 @@ dependencies = [
     "numpy>=2.5.4",
     "openpyxl>=3.1.5",
     "pandas>=3.1.1",
+    "pybaselines>=1.2.1",
     "pydantic-settings>=2.16.2",
+    "scipy>=1.18.1",
 ]
 
 [build-system]
@@ -42,7 +44,7 @@ files = ["src"]
 plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]
-module = ["pandas", "pandas.*"]
+module = ["pandas", "pandas.*", "pybaselines", "pybaselines.*", "scipy", "scipy.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
