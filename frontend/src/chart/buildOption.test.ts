@@ -195,10 +195,10 @@ describe('colour ranges', () => {
     expect(maps[1]?.outOfRange.color).toBe('#06b6d4')
   })
 
-  it('leaves a bound open when it is empty', () => {
+  it('closes a bound that is empty just beyond the data', () => {
     const maps = visualMapsOf(build({ ranges: [{ ...range, from: null }] }))
 
-    expect(maps[0]?.pieces).toEqual([{ lte: 20, color: '#ff0000' }])
+    expect(maps[0]?.pieces).toEqual([{ gte: expect.any(Number), lte: 20, color: '#ff0000' }])
   })
 
   it('colours X ranges on a number axis', () => {

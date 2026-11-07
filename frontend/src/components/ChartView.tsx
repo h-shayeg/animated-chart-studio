@@ -13,6 +13,8 @@ interface ChartViewProps {
   dark: boolean
   replayToken: number
   label: string
+  // Any CSS height, for example "560px".
+  height: string
   onReady: (chart: ECharts | null) => void
 }
 
@@ -23,6 +25,7 @@ export function ChartView({
   dark,
   replayToken,
   label,
+  height,
   onReady,
 }: ChartViewProps) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -88,7 +91,7 @@ export function ChartView({
   }, [replayToken])
 
   return (
-    <div className="relative min-h-112 w-full flex-1">
+    <div className="relative w-full" style={{ height }}>
       <div ref={containerRef} role="img" aria-label={label} className="absolute inset-0" />
     </div>
   )

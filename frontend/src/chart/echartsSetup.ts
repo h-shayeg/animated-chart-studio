@@ -1,4 +1,4 @@
-import { BarChart, LineChart, PieChart, ScatterChart } from 'echarts/charts'
+import { BarChart, CustomChart, LineChart, PieChart, ScatterChart } from 'echarts/charts'
 import {
   DataZoomComponent,
   GridComponent,
@@ -14,6 +14,7 @@ import type { ChartOption } from './buildOption'
 
 echarts.use([
   BarChart,
+  CustomChart,
   LineChart,
   PieChart,
   ScatterChart,
