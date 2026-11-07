@@ -53,3 +53,33 @@ class AnalysisSummary(BaseModel):
     rows: int
     columns: list[ColumnSummary]
     correlation: Correlation | None = None
+
+
+class XrdRequest(BaseModel):
+    two_theta: list[float] = Field(min_length=20, max_length=200_000)
+    intensity: list[float] = Field(min_length=20, max_length=200_000)
+    wavelength: float = Field(default=1.5406, gt=0.1, lt=10)
+    smoothing_window: int = Field(default=9, ge=0, le=201)
+    baseline_method: Literal["none", "snip"] = "snip"
+    baseline_window: float = Field(default=5.0, gt=0, le=60)
+    min_prominence: float = Field(default=3.0, gt=0, le=100)
+    min_distance: float = Field(default=0.2, ge=0, le=20)
+    shape_factor: float = Field(default=0.9, gt=0, le=2)
+    instrument_broadening: float = Field(default=0.0, ge=0, le=5)
+
+
+class XrdPeak(BaseModel):
+    position: float
+    d_spacing: float
+    height: float
+    relative_intensity: float
+    fwhm: float
+    crystallite_size: float | None
+
+
+class XrdResult(BaseModel):
+    two_theta: list[float]
+    smoothed: list[float]
+    baseline: list[float]
+    corrected: list[float]
+    peaks: list[XrdPeak]
