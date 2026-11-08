@@ -52,3 +52,48 @@ export async function parseDataset(file: File, header = true): Promise<Dataset> 
   }
   return (await response.json()) as Dataset
 }
+
+export interface XrdOptions {
+  wavelength: number
+  smoothing_window: number
+  baseline_method: 'none' | 'snip'
+  baseline_window: number
+  min_prominence: number
+  min_distance: number
+  shape_factor: number
+  instrument_broadening: number
+}
+
+export interface XrdPeak {
+  position: number
+  d_spacing: number
+  height: number
+  relative_intensity: number
+  fwhm: number
+  crystallite_size: number | null
+}
+
+export interface XrdResult {
+  two_theta: number[]
+  smoothed: number[]
+  baseline: number[]
+  corrected: number[]
+  peaks: XrdPeak[]
+}
+
+export async function analyzeXrd(
+  twoTheta: number[],
+  intensity: number[],
+  options: XrdOptions,
+): Promise<XrdResult> {
+  const response = await fetch('/api/v1/xrd/analyze', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ two_theta: twoTheta, intensity, ...options }),
+  })
+  if (!response.ok) {
+    const detail = await readDetail(response)
+    throw new ApiError(detail ?? `Request failed with status ${response.status}`, response.status)
+  }
+  return (await response.json()) as XrdResult
+}
