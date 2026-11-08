@@ -3,6 +3,7 @@ import { initReactI18next } from 'react-i18next'
 
 import { en } from './en'
 import { fa } from './fa'
+import { spectraEn, spectraFa } from './spectra'
 import { xrdEn, xrdFa } from './xrd'
 
 export type Language = 'fa' | 'en'
@@ -35,8 +36,8 @@ applyLanguage(initialLanguage)
 
 void i18n.use(initReactI18next).init({
   resources: {
-    fa: { translation: { ...fa, xrd: xrdFa } },
-    en: { translation: { ...en, xrd: xrdEn } },
+    fa: { translation: { ...fa, xrd: xrdFa, spectra: spectraFa } },
+    en: { translation: { ...en, xrd: xrdEn, spectra: spectraEn } },
   },
   lng: initialLanguage,
   fallbackLng: 'en',

@@ -161,3 +161,8 @@ export function buildXrdOption(
     series: [...curves, peakSeries(result, view, labels.peaks)],
   }
 }
+
+export interface XrdOutcome {
+  result: XrdResult
+  raw: number[]
+}
