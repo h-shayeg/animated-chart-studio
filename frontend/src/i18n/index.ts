@@ -3,6 +3,7 @@ import { initReactI18next } from 'react-i18next'
 
 import { en } from './en'
 import { fa } from './fa'
+import { xrdEn, xrdFa } from './xrd'
 
 export type Language = 'fa' | 'en'
 
@@ -33,7 +34,10 @@ const initialLanguage = detectLanguage()
 applyLanguage(initialLanguage)
 
 void i18n.use(initReactI18next).init({
-  resources: { fa: { translation: fa }, en: { translation: en } },
+  resources: {
+    fa: { translation: { ...fa, xrd: xrdFa } },
+    en: { translation: { ...en, xrd: xrdEn } },
+  },
   lng: initialLanguage,
   fallbackLng: 'en',
   interpolation: { escapeValue: false },

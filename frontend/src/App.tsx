@@ -4,6 +4,7 @@ import { ChartStudio } from './components/ChartStudio'
 import { DataTable } from './components/DataTable'
 import { Header } from './components/Header'
 import { UploadPanel } from './components/UploadPanel'
+import { XrdPanel } from './components/XrdPanel'
 import { useDatasetStore } from './store'
 
 export default function App() {
@@ -26,6 +27,7 @@ export default function App() {
         {dataset ? (
           <>
             <ChartStudio key={datasetKey} dataset={dataset} />
+            <XrdPanel key={`xrd:${datasetKey}`} dataset={dataset} />
             <DataTable dataset={dataset} />
           </>
         ) : (
