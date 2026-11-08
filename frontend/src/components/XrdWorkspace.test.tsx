@@ -57,7 +57,7 @@ it('asks for data before anything else', () => {
   expect(screen.getByRole('button', { name: 'Analyze' })).toBeDisabled()
 })
 
-it('reads he file, checks it, picks the columns and shows the peaks', async () => {
+it('reads the file, checks it, picks the columns and shows the peaks', async () => {
   const fetchMock = vi
     .fn()
     .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(makeDataset(40)) })

@@ -166,3 +166,8 @@ export interface XrdOutcome {
   result: XrdResult
   raw: number[]
 }
+
+export interface XrdOutcome {
+  result: XrdResult
+  raw: number[]
+}
