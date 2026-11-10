@@ -79,18 +79,21 @@ function round(value: number): number {
   return Number(value.toFixed(4))
 }
 
-export function peaksToCsv(peaks: XrdPeak[]): string {
-  const header = '2theta_deg,d_angstrom,height,relative_percent,fwhm_deg,crystallite_size_nm'
-  const rows = peaks.map((peak) =>
-    [
+export function peaksToCsv(peaks: XrdPeak[], hkl?: (string | null)[]): string {
+  const base = '2theta_deg,d_angstrom,height,relative_percent,fwhm_deg,crystallite_size_nm'
+  const header = hkl ? `${base},hkl` : base
+  const rows = peaks.map((peak, index) => {
+    const cells: (string | number)[] = [
       round(peak.position),
       round(peak.d_spacing),
       round(peak.height),
       round(peak.relative_intensity),
       round(peak.fwhm),
       peak.crystallite_size === null ? '' : round(peak.crystallite_size),
-    ].join(','),
-  )
+    ]
+    if (hkl) cells.push(hkl[index] ?? '')
+    return cells.join(',')
+  })
   return [header, ...rows].join('\n')
 }
 
@@ -114,7 +117,16 @@ function line(
   }
 }
 
-function peakSeries(result: XrdResult, view: XrdView, name: string): XrdSeries {
+function peakName(position: number, hkl: string | null | undefined): string {
+  return hkl ? `${position.toFixed(2)} ${hkl}` : position.toFixed(2)
+}
+
+function peakSeries(
+  result: XrdResult,
+  view: XrdView,
+  name: string,
+  hklLabels: (string | null)[],
+): XrdSeries {
   return {
     type: 'scatter',
     name,
@@ -124,8 +136,8 @@ function peakSeries(result: XrdResult, view: XrdView, name: string): XrdSeries {
     z: 10,
     itemStyle: { color: COLORS.peaks },
     label: { show: true, position: 'top', formatter: '{b}', fontSize: 11 },
-    data: result.peaks.map((peak) => ({
-      name: peak.position.toFixed(2),
+    data: result.peaks.map((peak, index) => ({
+      name: peakName(peak.position, hklLabels[index]),
       value: [
         peak.position,
         view === 'original' ? peak.height + baselineAt(result, peak.position) : peak.height,
@@ -139,6 +151,7 @@ export function buildXrdOption(
   raw: number[],
   view: XrdView,
   labels: XrdLabels,
+  hklLabels: (string | null)[] = [],
 ): XrdOption {
   const angles = result.two_theta
   const curves =
@@ -158,11 +171,25 @@ export function buildXrdOption(
     xAxis: { type: 'value', name: labels.xAxis, nameLocation: 'middle', nameGap: 30, scale: true },
     yAxis: { type: 'value', name: labels.yAxis, nameLocation: 'middle', nameGap: 48 },
     dataZoom: [{ type: 'inside' }, { type: 'slider', height: 22, bottom: 28 }],
-    series: [...curves, peakSeries(result, view, labels.peaks)],
+    series: [...curves, peakSeries(result, view, labels.peaks, hklLabels)],
   }
 }
 
 export interface XrdOutcome {
   result: XrdResult
   raw: number[]
+}
+
+const MACRON = '\u0304'
+
+// Miller indices as written in a book: (111), and a bar over a negative index.
+export function formatMiller(hkl: readonly number[]): string {
+  const wide = hkl.some((value) => Math.abs(value) >= 10)
+  const parts = hkl.map((value) => (value < 0 ? `${Math.abs(value)}${MACRON}` : String(value)))
+  return `(${parts.join(wide ? ' ' : '')})`
+}
+
+// The indices of a peak. When several families share the same spacing, the first two are shown.
+export function hklText(hkl: readonly (readonly number[])[]): string {
+  return hkl.slice(0, 2).map(formatMiller).join(' / ')
 }

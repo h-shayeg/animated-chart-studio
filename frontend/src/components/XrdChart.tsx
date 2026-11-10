@@ -12,18 +12,19 @@ interface XrdChartProps {
   raw: number[]
   view: XrdView
   labels: XrdLabels
+  hkl: (string | null)[]
   label: string
   // Any CSS height, for example "26rem".
   height: string
 }
 
-export function XrdChart({ result, raw, view, labels, label, height }: XrdChartProps) {
+export function XrdChart({ result, raw, view, labels, hkl, label, height }: XrdChartProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<ECharts | null>(null)
   const dark = useIsDark()
   const option = useMemo(
-    () => buildXrdOption(result, raw, view, labels),
-    [result, raw, view, labels],
+    () => buildXrdOption(result, raw, view, labels, hkl),
+    [result, raw, view, labels, hkl],
   )
 
   useEffect(() => {

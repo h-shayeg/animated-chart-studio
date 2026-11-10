@@ -97,3 +97,58 @@ export async function analyzeXrd(
   }
   return (await response.json()) as XrdResult
 }
+
+export interface XrdPeakMatch {
+  peak_index: number
+  hkl: number[][]
+  reference_two_theta: number
+  difference: number
+}
+
+export interface XrdPhaseMatch {
+  name: string
+  formula: string
+  space_group: string
+  score: number
+  matches: XrdPeakMatch[]
+  missing: number
+}
+
+export interface XrdAssignment {
+  peak_index: number
+  phase_index: number
+  hkl: number[][]
+}
+
+export interface XrdIdentifyResult {
+  phases: XrdPhaseMatch[]
+  assignments: XrdAssignment[]
+}
+
+export async function identifyXrd(
+  peaks: XrdPeak[],
+  wavelength: number,
+  range: [number, number],
+  tolerance: number,
+): Promise<XrdIdentifyResult> {
+  const clamp = (value: number) => Math.min(100, Math.max(0, value))
+  const response = await fetch('/api/v1/xrd/identify', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      peaks: peaks.map((peak) => ({
+        position: peak.position,
+        relative_intensity: clamp(peak.relative_intensity),
+      })),
+      wavelength,
+      two_theta_min: range[0],
+      two_theta_max: range[1],
+      tolerance,
+    }),
+  })
+  if (!response.ok) {
+    const detail = await readDetail(response)
+    throw new ApiError(detail ?? `Request failed with status ${response.status}`, response.status)
+  }
+  return (await response.json()) as XrdIdentifyResult
+}

@@ -83,3 +83,43 @@ class XrdResult(BaseModel):
     baseline: list[float]
     corrected: list[float]
     peaks: list[XrdPeak]
+
+
+class IdentifyPeak(BaseModel):
+    position: float = Field(gt=0, lt=180)
+    relative_intensity: float = Field(ge=0, le=100)
+
+
+class XrdIdentifyRequest(BaseModel):
+    peaks: list[IdentifyPeak] = Field(min_length=1, max_length=200)
+    wavelength: float = Field(default=1.5406, gt=0.1, lt=10)
+    two_theta_min: float = Field(gt=0, lt=180)
+    two_theta_max: float = Field(gt=0, lt=180)
+    tolerance: float = Field(default=0.3, gt=0, le=2)
+
+
+class PeakMatch(BaseModel):
+    peak_index: int
+    hkl: list[list[int]]
+    reference_two_theta: float
+    difference: float
+
+
+class PhaseMatch(BaseModel):
+    name: str
+    formula: str
+    space_group: str
+    score: float
+    matches: list[PeakMatch]
+    missing: int
+
+
+class PeakAssignment(BaseModel):
+    peak_index: int
+    phase_index: int
+    hkl: list[list[int]]
+
+
+class XrdIdentifyResult(BaseModel):
+    phases: list[PhaseMatch]
+    assignments: list[PeakAssignment]

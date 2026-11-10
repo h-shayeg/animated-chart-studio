@@ -39,6 +39,7 @@ export const spectraEn = {
     prepare: 'Preparation',
     peaks: 'Peaks',
     calculate: 'Calculation',
+    identify: 'Identification',
     analyze: 'Analysis',
   },
   import: {
@@ -105,6 +106,7 @@ export const spectraFa = {
     prepare: 'آماده‌سازی',
     peaks: 'قله‌ها',
     calculate: 'محاسبه',
+    identify: 'شناسایی',
     analyze: 'تحلیل',
   },
   import: {

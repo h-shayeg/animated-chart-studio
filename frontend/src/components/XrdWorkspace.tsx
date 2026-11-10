@@ -1,7 +1,14 @@
 import { useMemo, useRef, useState, type ChangeEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { analyzeXrd, parseDataset, type Dataset } from '../api'
+import {
+  analyzeXrd,
+  identifyXrd,
+  parseDataset,
+  type Dataset,
+  type XrdIdentifyResult,
+  type XrdResult,
+} from '../api'
 import { extractPattern, type XrdOutcome } from '../chart/xrd'
 import {
   MIN_POINTS,
@@ -13,6 +20,7 @@ import {
 import {
   INITIAL_VALUES,
   readOptions,
+  readTolerance,
   type BaselineMethod,
   type FieldId,
 } from '../chart/xrdOptions'
@@ -38,6 +46,7 @@ const CALCULATE_FIELDS: FieldSpec[] = [
   { id: 'shape', step: '0.01' },
   { id: 'instrument', step: '0.01' },
 ]
+const IDENTIFY_FIELDS: FieldSpec[] = [{ id: 'tolerance', step: '0.05' }]
 
 const INPUT_CLASS =
   'rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-900'
@@ -89,6 +98,9 @@ export function XrdWorkspace() {
   const [working, setWorking] = useState(false)
   const [analysisError, setAnalysisError] = useState<string | null>(null)
   const [outcome, setOutcome] = useState<XrdOutcome | null>(null)
+  const [identification, setIdentification] = useState<XrdIdentifyResult | null>(null)
+  const [identifying, setIdentifying] = useState(false)
+  const [identifyError, setIdentifyError] = useState<string | null>(null)
 
   const problems = useMemo<XrdProblem[]>(() => {
     if (!dataset) return []
@@ -100,6 +112,25 @@ export function XrdWorkspace() {
     ? dataset.columns.filter((column) => column.kind === 'numeric').map((column) => column.name)
     : []
 
+  const identify = async (result: XrdResult, wavelength: number) => {
+    if (result.peaks.length === 0) return
+    const tolerance = readTolerance(values)
+    if (tolerance === null) {
+      setIdentifyError(t('xrd.invalidNumber'))
+      return
+    }
+    setIdentifying(true)
+    try {
+      const first = result.two_theta[0] ?? 0
+      const last = result.two_theta[result.two_theta.length - 1] ?? 0
+      setIdentification(await identifyXrd(result.peaks, wavelength, [first, last], tolerance))
+    } catch (caught) {
+      setIdentifyError(caught instanceof Error ? caught.message : t('xrd.identify.failed'))
+    } finally {
+      setIdentifying(false)
+    }
+  }
+
   const analyze = async (source: Dataset, chosen: XrdColumns) => {
     const options = readOptions(values, baseline)
     if (!options) {
@@ -110,9 +141,12 @@ export function XrdWorkspace() {
     const pattern = extractPattern(source, chosen.angle, chosen.intensity)
     setWorking(true)
     setAnalysisError(null)
+    setIdentification(null)
+    setIdentifyError(null)
     try {
       const result = await analyzeXrd(pattern.twoTheta, pattern.intensity, options)
       setOutcome({ result, raw: pattern.intensity })
+      await identify(result, options.wavelength)
     } catch (caught) {
       setOutcome(null)
       setAnalysisError(caught instanceof Error ? caught.message : t('xrd.failed'))
@@ -267,6 +301,14 @@ export function XrdWorkspace() {
           />
         </RibbonGroup>
 
+        <RibbonGroup label={t('spectra.groups.identify')}>
+          <FieldInputs
+            fields={IDENTIFY_FIELDS}
+            values={values}
+            onChange={(id, value) => setValues((current) => ({ ...current, [id]: value }))}
+          />
+        </RibbonGroup>
+
         <RibbonGroup label={t('spectra.groups.analyze')}>
           <button
             type="button"
@@ -304,7 +346,15 @@ export function XrdWorkspace() {
         </p>
       ) : null}
 
-      {outcome ? <XrdResults outcome={outcome} csvName={csvName} /> : null}
+      {outcome ? (
+        <XrdResults
+          outcome={outcome}
+          csvName={csvName}
+          identification={identification}
+          identifying={identifying}
+          identifyError={identifyError}
+        />
+      ) : null}
 
       {!dataset && !importError ? (
         <p className="rounded-2xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-600 dark:border-slate-700 dark:text-slate-400">
