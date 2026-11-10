@@ -15,8 +15,11 @@ patterns. The interface is available in English and Persian (right to left).
 - Colour ranges on the X or the Y axis, cropping, a zoom slider and an adjustable chart height.
 - A magnifier: a frame on the chart with that part enlarged beside it, with its own animation.
 - Light and dark themes and an English or Persian interface.
-- XRD analysis: smoothing, baseline removal, peak detection, d-spacing (Bragg's law) and
-  crystallite size (Scherrer equation), with a downloadable peak table.
+- An Excel-style ribbon with a tab for each spectrum type; the tools of a tab open when you pick it.
+- XRD analysis: data import with checks, smoothing, baseline removal, peak detection, d-spacing
+  (Bragg's law), crystallite size (Scherrer equation) and a downloadable peak table.
+- XRD material identification: the peaks are matched against a library of common materials, the
+  best match is named and every peak gets its Miller indices (hkl).
 - More spectrum types are planned, one at a time (see the roadmap below).
 
 ## Tech stack
@@ -34,7 +37,7 @@ Backend (API on http://localhost:8000, interactive docs at `/docs`):
 ~~~bash
 cd backend
 uv sync
-uv run fastapi dev
+uv run uvicorn chart_studio_api.main:app --reload
 ~~~
 
 Frontend (http://localhost:5173, requests to `/api` go to the backend):
@@ -49,12 +52,19 @@ The backend can also run with Docker: `docker compose up --build`.
 
 ## Try the XRD analysis
 
-1. Open the app and upload `samples/xrd-silicon-synthetic.csv`, a synthetic pattern with five peaks.
-2. In the XRD panel choose the angle column (`two_theta`) and the intensity column (`intensity`).
-3. Press Analyze. The chart shows the raw, smoothed and baseline curves with the peaks marked, and
-   the table lists each peak with its position, d-spacing, height, width and crystallite size.
+1. Open the **XRD** tab in the ribbon at the top and press **Import data**. Pick
+   `samples/xrd-silicon-synthetic.csv`, a synthetic silicon pattern with five peaks.
+2. The angle and intensity columns are found automatically and the data is checked. If it looks
+   like an XRD pattern, the analysis runs at once.
+3. The chart shows the raw, smoothed and baseline curves with the peaks marked. The table lists
+   each peak with its position, Miller indices, d-spacing, height, width and crystallite size, and
+   the material card names the best match from the reference library.
 
-The same analysis is available from the API: `POST /api/v1/xrd/analyze`.
+The same analysis is available from the API: `POST /api/v1/xrd/analyze` for the peaks and
+`POST /api/v1/xrd/identify` for the material.
+
+The reference library is built from known crystal structures with
+`uv run --group reference python scripts/build_references.py` in the `backend` folder.
 
 ## Project structure
 
@@ -83,8 +93,8 @@ the squashed title becomes the commit message on `main`. See [CONTRIBUTING.md](C
 
 The planned spectrum tools are tracked as issues in the
 [Spectra analysis tools](https://github.com/h-shayeg/animated-chart-studio/milestones) milestone:
-Raman, FTIR, UV-Vis, photoluminescence, XPS, EDS, XAS, NMR, mass spectra, TGA and DSC, TPD and TPR,
-and phase identification for XRD.
+Raman, FTIR, UV-Vis, photoluminescence, XPS, EDS, XAS, NMR, mass spectra, TGA and DSC, and
+TPD and TPR.
 
 Questions and ideas are welcome in
 [Discussions](https://github.com/h-shayeg/animated-chart-studio/discussions). Security problems

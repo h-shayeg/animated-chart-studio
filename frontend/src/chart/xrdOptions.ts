@@ -10,6 +10,7 @@ export type FieldId =
   | 'wavelength'
   | 'shape'
   | 'instrument'
+  | 'tolerance'
 
 export const INITIAL_VALUES: Record<FieldId, string> = {
   smoothing: '9',
@@ -19,6 +20,7 @@ export const INITIAL_VALUES: Record<FieldId, string> = {
   wavelength: '1.5406',
   shape: '0.9',
   instrument: '0',
+  tolerance: '0.3',
 }
 
 // Turns what was typed into the options of the analysis, or null when a field is not a number.
@@ -41,4 +43,12 @@ export function readOptions(
     (value): value is number => typeof value === 'number',
   )
   return numbers.every((value) => Number.isFinite(value)) ? options : null
+}
+
+// How far a peak may be from a reference line to count as the same line, or null when invalid.
+export function readTolerance(values: Record<FieldId, string>): number | null {
+  const text = values.tolerance.trim()
+  if (text === '') return null
+  const value = Number(text)
+  return Number.isFinite(value) && value > 0 ? value : null
 }

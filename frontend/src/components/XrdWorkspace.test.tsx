@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, expect, it, vi } from 'vitest'
 
-import type { Dataset, XrdResult } from '../api'
+import type { Dataset, XrdIdentifyResult, XrdResult } from '../api'
 import { XrdWorkspace } from './XrdWorkspace'
 
 // The chart itself is covered by the tests of the option builder, so it is left out here.
@@ -41,6 +41,24 @@ const result: XrdResult = {
   ],
 }
 
+const identification: XrdIdentifyResult = {
+  phases: [
+    {
+      name: 'Silicon',
+      formula: 'Si',
+      space_group: 'Fd-3m',
+      score: 0.97,
+      matches: [{ peak_index: 0, hkl: [[1, 1, 1]], reference_two_theta: 28.44, difference: 0 }],
+      missing: 0,
+    },
+  ],
+  assignments: [{ peak_index: 0, phase_index: 0, hkl: [[1, 1, 1]] }],
+}
+
+function reply(body: unknown) {
+  return { ok: true, json: () => Promise.resolve(body) }
+}
+
 function chooseFile() {
   const file = new File(['x'], 'si.csv', { type: 'text/csv' })
   fireEvent.change(screen.getByLabelText('Data file'), { target: { files: [file] } })
@@ -57,28 +75,53 @@ it('asks for data before anything else', () => {
   expect(screen.getByRole('button', { name: 'Analyze' })).toBeDisabled()
 })
 
-it('reads he file, checks it, picks the columns and shows the peaks', async () => {
+it('reads the file, picks the olumns, shows the peaks and names the material', async () => {
   const fetchMock = vi
     .fn()
-    .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(makeDataset(40)) })
-    .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(result) })
+    .mockResolvedValueOnce(reply(makeDataset(40)))
+    .mockResolvedValueOnce(reply(result))
+    .mockResolvedValueOnce(reply(identification))
   vi.stubGlobal('fetch', fetchMock)
   render(<XrdWorkspace />)
 
   chooseFile()
 
   expect(await screen.findByText('28.44')).toBeInTheDocument()
-  const [url, init] = fetchMock.mock.calls[1] as [string, RequestInit]
-  const body = JSON.parse(init.body as string) as { two_theta: number[]; intensity: number[] }
-  expect(url).toBe('/api/v1/xrd/analyze')
-  expect(body.two_theta[0]).toBe(20)
-  expect(body.intensity[0]).toBe(100)
+  expect(await screen.findByText('Silicon (Si)')).toBeInTheDocument()
+  expect(screen.getByText('(111)')).toBeInTheDocument()
+  expect(screen.getByText('Match 97%')).toBeInTheDocument()
+  const [analyzeUrl, analyzeInit] = fetchMock.mock.calls[1] as [string, RequestInit]
+  const analyzeBody = JSON.parse(analyzeInit.body as string) as {
+    two_theta: number[]
+    intensity: number[]
+  }
+  expect(analyzeUrl).toBe('/api/v1/xrd/analyze')
+  expect(analyzeBody.two_theta[0]).toBe(20)
+  expect(analyzeBody.intensity[0]).toBe(100)
+  const [identifyUrl, identifyInit] = fetchMock.mock.calls[2] as [string, RequestInit]
+  const identifyBody = JSON.parse(identifyInit.body as string) as Record<string, unknown>
+  expect(identifyUrl).toBe('/api/v1/xrd/identify')
+  expect(identifyBody.two_theta_min).toBe(20)
+  expect(identifyBody.tolerance).toBe(0.3)
+})
+
+it('keeps the peaks and says so when the material cannot be identified', async () => {
+  const fetchMock = vi
+    .fn()
+    .mockResolvedValueOnce(reply(makeDataset(40)))
+    .mockResolvedValueOnce(reply(result))
+    .mockResolvedValueOnce(reply({ phases: [], assignments: [] }))
+  vi.stubGlobal('fetch', fetchMock)
+  render(<XrdWorkspace />)
+
+  chooseFile()
+
+  expect(await screen.findByText(/No material in the library matches/)).toBeInTheDocument()
+  expect(screen.getByText('28.44')).toBeInTheDocument()
 })
 
 it('explains what is wrong with data that is not an XRD pattern and does not analyse it', async () => {
-  const fetchMock = vi
-    .fn()
-    .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(makeDataset(5)) })
+  const fetchMock = vi.fn().mockResolvedValueOnce(reply(makeDataset(5)))
   vi.stubGlobal('fetch', fetchMock)
   render(<XrdWorkspace />)
 
