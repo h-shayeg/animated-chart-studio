@@ -8,12 +8,30 @@ permissions:
   contents: read
 
 jobs:
+  check:
+    name: Version matches the tag
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Compare the tag with the version in the code
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          grep -qxF "version = \"$version\"" backend/pyproject.toml
+          grep -qF "\"version\": \"$version\"," frontend/package.json
+          grep -qF "## [$version]" CHANGELOG.md
+
   image:
-    name: Publish backend image
+    name: Publish ${{ matrix.part }} image
+    needs: check
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
+    strategy:
+      matrix:
+        part: [backend, frontend]
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -32,7 +50,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/${{ github.repository }}-backend
+          images: ghcr.io/${{ github.repository }}-${{ matrix.part }}
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
@@ -41,20 +59,39 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
-          context: backend
+          context: ${{ matrix.part }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=${{ matrix.part }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.part }}
 
   release:
     name: GitHub release
+    needs: image
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - name: Create the release with generated notes
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Take the notes of this version from the changelog
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          awk -v heading="## [$version]" '
+            index($0, "## [") == 1 { inside = index($0, heading) == 1; next }
+            /^\[[^]]+\]: / { next }
+            inside
+          ' CHANGELOG.md > notes.md
+
+      - name: Create the release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --generate-notes
+        run: |
+          if grep -q '[^[:space:]]' notes.md; then
+            gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
+              --title "$GITHUB_REF_NAME" --notes-file notes.md
+          else
+            gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --generate-notes
+          fi

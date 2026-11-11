@@ -2,6 +2,7 @@
 
 [![CI](https://github.com/h-shayeg/animated-chart-studio/actions/workflows/ci.yml/badge.svg)](https://github.com/h-shayeg/animated-chart-studio/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/h-shayeg/animated-chart-studio/actions/workflows/codeql.yml/badge.svg)](https://github.com/h-shayeg/animated-chart-studio/actions/workflows/codeql.yml)
+[![Release](https://img.shields.io/github/v/release/h-shayeg/animated-chart-studio)](https://github.com/h-shayeg/animated-chart-studio/releases)
 [![License: MIT](https://img.shields.io/github/license/h-shayeg/animated-chart-studio)](LICENSE)
 
 A studio for animated, interactive charts, with analysis tools for materials-characterization
@@ -208,6 +209,8 @@ runs CodeQL and a dependency review. Pull request titles follow
 [Conventional Commits](https://www.conventionalcommits.org/) (`feat:`, `fix:`, `docs:` ...), because
 the squashed title becomes the commit message on `main`. See [CONTRIBUTING.md](CONTRIBUTING.md),
 [backend/README.md](backend/README.md) and [frontend/README.md](frontend/README.md).
+
+What changed in each release is in [CHANGELOG.md](CHANGELOG.md).
 
 ## Roadmap
 
