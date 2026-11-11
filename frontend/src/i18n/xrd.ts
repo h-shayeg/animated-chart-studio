@@ -29,6 +29,11 @@ export const xrdEn = {
   },
   axis: { angle: '2θ (°)', intensity: 'Intensity' },
   chartLabel: 'XRD pattern',
+  picture: {
+    format: 'Picture format',
+    save: 'Save chart as picture',
+    failed: 'The picture could not be saved:',
+  },
   peaks: {
     title: 'Detected peaks',
     none: 'No peaks were found. Try a smaller value for the smallest peak height.',
@@ -87,6 +92,11 @@ export const xrdFa = {
   },
   axis: { angle: '2θ (درجه)', intensity: 'شدت' },
   chartLabel: 'الگوی XRD',
+  picture: {
+    format: 'قالب عکس',
+    save: 'ذخیره‌ی عکس نمودار',
+    failed: 'ذخیره‌ی عکس ممکن نشد:',
+  },
   peaks: {
     title: 'قله‌های پیداشده',
     none: 'قله‌ای پیدا نشد. کمترین ارتفاع قله را کوچک‌تر کن.',
