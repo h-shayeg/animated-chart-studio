@@ -7,7 +7,7 @@ class Settings(BaseSettings):
     """Application settings, overridable with CHART_STUDIO_* environment variables."""
 
     app_name: str = "Animated Chart Studio API"
-    app_version: str = "0.1.0"
+    app_version: str = "1.0.0"
     debug: bool = False
     max_upload_bytes: int = 10 * 1024 * 1024
     max_rows: int = 50_000
