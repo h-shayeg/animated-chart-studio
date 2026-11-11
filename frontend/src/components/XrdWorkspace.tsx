@@ -24,6 +24,7 @@ import {
   type BaselineMethod,
   type FieldId,
 } from '../chart/xrdOptions'
+import { FILE_ACCEPT } from '../fileTypes'
 import { RibbonField, RibbonGroup, RibbonPanel } from './Ribbon'
 import { XrdResults } from './XrdResults'
 
@@ -203,7 +204,7 @@ export function XrdWorkspace() {
           <input
             ref={fileInput}
             type="file"
-            accept=".csv,.xlsx"
+            accept={FILE_ACCEPT}
             aria-label={t('spectra.import.fileInput')}
             onChange={onPick}
             className="sr-only"

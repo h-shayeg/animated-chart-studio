@@ -2,11 +2,13 @@ import { useState } from 'react'
 import { useDropzone } from 'react-dropzone'
 import { useTranslation } from 'react-i18next'
 
+import { INSTRUMENT_EXTENSIONS } from '../fileTypes'
 import { useDatasetStore } from '../store'
 
 const ACCEPT = {
   'text/csv': ['.csv'],
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
+  'text/plain': INSTRUMENT_EXTENSIONS,
 }
 
 const SAMPLE_ROWS = [
