@@ -54,18 +54,24 @@ jobs:
       - name: Validate compose file
         run: docker compose config --quiet
 
-      - name: Build backend image
-        run: docker build --tag chart-studio-backend:ci backend
+      - name: Build both images and start the app
+        run: docker compose up --build --detach --wait --wait-timeout 180
 
       - name: Smoke test
         run: |
-          docker run -d --name api -p 8000:8000 chart-studio-backend:ci
-          for i in $(seq 1 20); do
-            curl -fsS http://localhost:8000/health && exit 0
-            sleep 1
-          done
-          docker logs api
-          exit 1
+          # The backend on its own port.
+          curl -fsS http://localhost:8000/health
+          # The page, and the backend reached through the frontend.
+          curl -fsS -o page.html http://localhost:8080/
+          grep -q '<div id="root">' page.html
+          curl -fsS http://localhost:8080/health
+          curl -fsS -o parsed.json -F file=@samples/xrd-silicon-synthetic.csv \
+            http://localhost:8080/api/v1/datasets/parse
+          grep -q '"rows":3000' parsed.json
+
+      - name: Show the logs if something failed
+        if: failure()
+        run: docker compose logs
 
   frontend:
     name: Frontend

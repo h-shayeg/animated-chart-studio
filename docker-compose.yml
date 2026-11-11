@@ -9,3 +9,14 @@ services:
       - "${BACKEND_PORT:-8000}:8000"
     environment:
       CHART_STUDIO_DEBUG: "false"
+
+  frontend:
+    build:
+      context: ./frontend
+    image: animated-chart-studio-frontend
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "${FRONTEND_PORT:-8080}:8080"

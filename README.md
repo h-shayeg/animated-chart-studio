@@ -32,6 +32,17 @@ patterns. The interface is available in English and Persian (right to left).
 
 ## Quick start
 
+With Docker, one command builds and starts the whole app:
+
+~~~bash
+docker compose up --build
+~~~
+
+Then open http://localhost:8080. The API is also on http://localhost:8000, with interactive docs
+at `/docs`. Set `FRONTEND_PORT` or `BACKEND_PORT` to use other ports.
+
+Without Docker, start the two parts in two terminals.
+
 Backend (API on http://localhost:8000, interactive docs at `/docs`):
 
 ~~~bash
@@ -47,8 +58,6 @@ cd frontend
 npm ci
 npm run dev
 ~~~
-
-The backend can also run with Docker: `docker compose up --build`.
 
 ## Try the XRD analysis
 
@@ -70,7 +79,7 @@ The reference library is built from known crystal structures with
 
 ~~~text
 backend/    FastAPI service: data parsing, summaries and XRD analysis
-frontend/   React app: chart studio and the XRD panel
+frontend/   React app: chart studio and the XRD panel, served by nginx in Docker
 samples/    Example data files
 .github/    Workflows, issue and pull request templates, Dependabot
 ~~~
