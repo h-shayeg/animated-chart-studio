@@ -52,6 +52,13 @@ def test_parse_xlsx(client: TestClient) -> None:
 
 
 def test_unsupported_file_type_is_rejected(client: TestClient) -> None:
+    response = client.post(URL, files={"file": ("paper.pdf", b"%PDF-1.7")})
+
+    assert response.status_code == 422
+    assert ".xy" in response.json()["detail"]
+
+
+def test_text_file_without_a_table_is_rejected(client: TestClient) -> None:
     response = client.post(URL, files={"file": ("notes.txt", b"hello")})
 
     assert response.status_code == 422

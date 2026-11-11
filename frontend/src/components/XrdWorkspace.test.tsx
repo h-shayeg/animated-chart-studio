@@ -105,6 +105,45 @@ it('reads the file, picks the olumns, shows the peaks and names the material', a
   expect(identifyBody.tolerance).toBe(0.3)
 })
 
+it('takes a text file from the instrument, whose columns have no names', async () => {
+  const pattern: Dataset = {
+    filename: 'si.xy',
+    rows: 40,
+    columns: [
+      { name: 'Column 1', kind: 'numeric', missing: 0 },
+      { name: 'Column 2', kind: 'numeric', missing: 0 },
+    ],
+    data: Array.from({ length: 40 }, (_, index) => ({
+      'Column 1': 20 + index * 0.5,
+      'Column 2': 100 + index,
+    })),
+  }
+  const fetchMock = vi
+    .fn()
+    .mockResolvedValueOnce(reply(pattern))
+    .mockResolvedValueOnce(reply(result))
+    .mockResolvedValueOnce(reply(identification))
+  vi.stubGlobal('fetch', fetchMock)
+  render(<XrdWorkspace />)
+
+  const input = screen.getByLabelText('Data file')
+  expect(input.getAttribute('accept')?.split(',')).toEqual(
+    expect.arrayContaining(['.csv', '.xlsx', '.xy', '.xye', '.txt', '.dat', '.asc']),
+  )
+  fireEvent.change(input, { target: { files: [new File(['20 100'], 'si.xy')] } })
+
+  expect(await screen.findByText('Silicon (Si)')).toBeInTheDocument()
+  expect(screen.getByLabelText('Angle column (2θ)')).toHaveValue('Column 1')
+  expect(screen.getByLabelText('Intensity column')).toHaveValue('Column 2')
+  const [, analyzeInit] = fetchMock.mock.calls[1] as [string, RequestInit]
+  const analyzeBody = JSON.parse(analyzeInit.body as string) as {
+    two_theta: number[]
+    intensity: number[]
+  }
+  expect(analyzeBody.two_theta.slice(0, 2)).toEqual([20, 20.5])
+  expect(analyzeBody.intensity.slice(0, 2)).toEqual([100, 101])
+})
+
 it('keeps the peaks and says so when the material cannot be identified', async () => {
   const fetchMock = vi
     .fn()

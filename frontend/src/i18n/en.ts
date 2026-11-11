@@ -18,12 +18,13 @@ export const en = {
   },
   upload: {
     title: 'Add your data',
-    drop: 'Drag a CSV or Excel file here, or click to choose one',
+    drop: 'Drag a CSV, Excel or text file here, or click to choose one',
     dropActive: 'Drop the file to upload it',
-    hint: 'Supported: .csv and .xlsx, up to 10 MB',
+    hint: 'Supported: .csv, .xlsx and text files (.txt, .tsv, .dat, .xy, .xye, .asc), up to 10 MB',
     sample: 'Try sample data',
     loading: 'Reading your file…',
-    rejected: 'This file type is not supported. Please choose a .csv or .xlsx file.',
+    rejected:
+      'This file type is not supported. Please choose a .csv, .xlsx or text file (.txt, .tsv, .dat, .xy, .xye, .asc).',
     failed: 'The file could not be read.',
   },
   table: {

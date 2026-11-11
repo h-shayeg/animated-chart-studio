@@ -11,6 +11,8 @@ patterns. The interface is available in English and Persian (right to left).
 ## Features
 
 - Upload CSV or Excel files (up to 10 MB) and browse them as a table, with or without a header row.
+- Text files as instruments write them (`.xy`, `.xye`, `.dat`, `.asc`, `.txt`, `.tsv`) are read too:
+  notes above the numbers are skipped, and tabs, spaces, semicolons and decimal commas are understood.
 - Line, area, bar, scatter and pie charts with colour palettes and animation you can replay.
 - Colour ranges on the X or the Y axis, cropping, a zoom slider and an adjustable chart height.
 - A magnifier: a frame on the chart with that part enlarged beside it, with its own animation.
@@ -62,7 +64,8 @@ npm run dev
 ## Try the XRD analysis
 
 1. Open the **XRD** tab in the ribbon at the top and press **Import data**. Pick
-   `samples/xrd-silicon-synthetic.csv`, a synthetic silicon pattern with five peaks.
+   `samples/xrd-silicon-synthetic.csv`, a synthetic silicon pattern with five peaks, or
+   `samples/xrd-silicon-synthetic.xy`, the same pattern as an instrument would write it.
 2. The angle and intensity columns are found automatically and the data is checked. If it looks
    like an XRD pattern, the analysis runs at once.
 3. The chart shows the raw, smoothed and baseline curves with the peaks marked. The table lists

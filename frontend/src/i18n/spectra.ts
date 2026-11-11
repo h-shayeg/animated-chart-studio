@@ -62,7 +62,7 @@ export const spectraEn = {
     flat: 'The intensity does not change, so there is nothing to analyse.',
   },
   empty:
-    'Choose "Import data" in the ribbon above. The file needs an angle column (2θ) and an intensity column.',
+    'Choose "Import data" in the ribbon above. The file needs an angle column (2θ) and an intensity column. Text files from the instrument (.xy, .xye, .txt, .dat, .asc), CSV and Excel files all work; notes above the numbers are skipped.',
 }
 
 export const spectraFa = {
@@ -129,5 +129,5 @@ export const spectraFa = {
     flat: 'شدت تغییری نمی‌کند و چیزی برای تحلیل نیست.',
   },
   empty:
-    'از نوار بالا «وارد کردن داده» را بزن. فایل باید یک ستون زاویه (2θ) و یک ستون شدت داشته باشد.',
+    'از نوار بالا «وارد کردن داده» را بزن. فایل باید یک ستون زاویه (2θ) و یک ستون شدت داشته باشد. فایل متنی دستگاه (xy، xye، txt، dat، asc) و فایل CSV و Excel پذیرفته می‌شود؛ یادداشت‌های بالای عددها نادیده گرفته می‌شود.',
 }
