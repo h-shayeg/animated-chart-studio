@@ -15,6 +15,8 @@ from chart_studio_api.schemas import (
 from chart_studio_api.services.datasets import DatasetError, column_kind
 
 TOP_VALUES = 5
+# The correlation table grows with the square of its columns, so it stops at the first ones.
+MAX_CORRELATION_COLUMNS = 30
 
 
 def build_table(rows: list[dict[str, Any]]) -> pd.DataFrame:
@@ -72,6 +74,7 @@ def _top_values(series: pd.Series) -> list[TopValue]:
 def _correlation(table: pd.DataFrame, numeric: list[str]) -> Correlation | None:
     if len(numeric) < 2:
         return None
+    numeric = numeric[:MAX_CORRELATION_COLUMNS]
     matrix = table[numeric].corr().to_numpy().tolist()
     rows = [[None if math.isnan(value) else round(value, 4) for value in row] for row in matrix]
     return Correlation(columns=numeric, matrix=rows)
