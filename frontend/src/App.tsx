@@ -6,6 +6,7 @@ import { ComingSoon } from './components/ComingSoon'
 import { DataTable } from './components/DataTable'
 import { Header } from './components/Header'
 import { RibbonTabs } from './components/Ribbon'
+import { SummaryPanel } from './components/SummaryPanel'
 import { UploadPanel } from './components/UploadPanel'
 import { XrdWorkspace } from './components/XrdWorkspace'
 import { useDatasetStore } from './store'
@@ -44,6 +45,7 @@ export default function App() {
           {dataset ? (
             <>
               <ChartStudio key={datasetKey} dataset={dataset} />
+              {dataset.summary ? <SummaryPanel summary={dataset.summary} /> : null}
               <DataTable dataset={dataset} />
             </>
           ) : (

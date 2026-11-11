@@ -6,11 +6,47 @@ export interface ColumnInfo {
   missing: number
 }
 
+// A statistic is null when it cannot be worked out, for example with a single value.
+export interface NumericStats {
+  count: number
+  mean: number | null
+  std: number | null
+  min: number | null
+  q25: number | null
+  median: number | null
+  q75: number | null
+  max: number | null
+}
+
+export interface TopValue {
+  value: string
+  count: number
+}
+
+export interface ColumnSummary extends ColumnInfo {
+  unique: number
+  numeric: NumericStats | null
+  top_values: TopValue[]
+}
+
+export interface Correlation {
+  columns: string[]
+  matrix: (number | null)[][]
+}
+
+export interface AnalysisSummary {
+  rows: number
+  columns: ColumnSummary[]
+  correlation: Correlation | null
+}
+
 export interface Dataset {
   filename: string
   rows: number
   columns: ColumnInfo[]
   data: Record<string, unknown>[]
+  // The statistics of the whole table, sent along with the parsed file.
+  summary?: AnalysisSummary | null
 }
 
 export class ApiError extends Error {

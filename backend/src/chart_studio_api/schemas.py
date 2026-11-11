@@ -11,13 +11,6 @@ class ColumnInfo(BaseModel):
     missing: int
 
 
-class DatasetTable(BaseModel):
-    filename: str
-    rows: int
-    columns: list[ColumnInfo]
-    data: list[dict[str, Any]]
-
-
 class SummaryRequest(BaseModel):
     rows: list[dict[str, Any]] = Field(min_length=1, max_length=100_000)
 
@@ -53,6 +46,15 @@ class AnalysisSummary(BaseModel):
     rows: int
     columns: list[ColumnSummary]
     correlation: Correlation | None = None
+
+
+class DatasetTable(BaseModel):
+    filename: str
+    rows: int
+    columns: list[ColumnInfo]
+    data: list[dict[str, Any]]
+    # The statistics of the whole table, worked out while the file is read.
+    summary: AnalysisSummary | None = None
 
 
 class XrdRequest(BaseModel):

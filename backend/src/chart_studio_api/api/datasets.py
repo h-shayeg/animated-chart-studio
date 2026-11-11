@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 
 from chart_studio_api.config import Settings, get_settings
 from chart_studio_api.schemas import DatasetTable
+from chart_studio_api.services.analysis import summarize
 from chart_studio_api.services.datasets import DatasetError, describe_table, read_table
 
 router = APIRouter(prefix="/api/v1/datasets", tags=["datasets"])
@@ -30,4 +31,5 @@ def parse_dataset(
     if len(table) > settings.max_rows:
         raise HTTPException(status_code=413, detail="The table has too many rows.")
 
-    return describe_table(filename, table)
+    described = describe_table(filename, table)
+    return described.model_copy(update={"summary": summarize(table)})

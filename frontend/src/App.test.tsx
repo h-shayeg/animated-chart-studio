@@ -66,6 +66,54 @@ it('loads the sample data and shows it as a table', async () => {
   expect(screen.getByText('1 missing')).toBeInTheDocument()
 })
 
+it('shows the statistical summary that comes with the data', async () => {
+  const numeric = {
+    count: 1,
+    mean: 120,
+    std: null,
+    min: 120,
+    q25: 120,
+    median: 120,
+    q75: 120,
+    max: 120,
+  }
+  const withSummary = {
+    ...dataset,
+    summary: {
+      rows: 2,
+      columns: [
+        { name: 'month', kind: 'datetime', missing: 0, unique: 2, numeric: null, top_values: [] },
+        { name: 'sales', kind: 'numeric', missing: 1, unique: 1, numeric, top_values: [] },
+      ],
+      correlation: null,
+    },
+  }
+  vi.stubGlobal(
+    'fetch',
+    vi.fn((url: string) =>
+      url === '/health'
+        ? Promise.resolve({ ok: true })
+        : Promise.resolve({ ok: true, json: () => Promise.resolve(withSummary) }),
+    ),
+  )
+  render(<App />)
+
+  fireEvent.click(screen.getByRole('button', { name: 'Try sample data' }))
+
+  expect(await screen.findByRole('heading', { name: 'Statistical summary' })).toBeInTheDocument()
+  expect(screen.getByRole('heading', { name: 'Number columns' })).toBeInTheDocument()
+})
+
+it('shows the data without a summary when none came with it', async () => {
+  stubBackend()
+  render(<App />)
+
+  fireEvent.click(screen.getByRole('button', { name: 'Try sample data' }))
+
+  expect(await screen.findByRole('heading', { name: 'Your data' })).toBeInTheDocument()
+  expect(screen.queryByRole('heading', { name: 'Statistical summary' })).not.toBeInTheDocument()
+})
+
 it('returns to the upload panel when another file is chosen', async () => {
   stubBackend()
   render(<App />)

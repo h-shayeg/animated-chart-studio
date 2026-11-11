@@ -13,6 +13,8 @@ patterns. The interface is available in English and Persian (right to left).
 - Upload CSV or Excel files (up to 10 MB) and browse them as a table, with or without a header row.
 - Text files as instruments write them (`.xy`, `.xye`, `.dat`, `.asc`, `.txt`, `.tsv`) are read too:
   notes above the numbers are skipped, and tabs, spaces, semicolons and decimal commas are understood.
+- A statistical summary of every file: mean, standard deviation, quartiles and the most frequent
+  values of each column, and a correlation table of the number columns.
 - Line, area, bar, scatter and pie charts with colour palettes and animation you can replay.
 - Colour ranges on the X or the Y axis, cropping, a zoom slider and an adjustable chart height.
 - A magnifier: a frame on the chart with that part enlarged beside it, with its own animation.
