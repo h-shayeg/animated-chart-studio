@@ -19,7 +19,8 @@ patterns. The interface is available in English and Persian (right to left).
 - Light and dark themes and an English or Persian interface.
 - An Excel-style ribbon with a tab for each spectrum type; the tools of a tab open when you pick it.
 - XRD analysis: data import with checks, smoothing, baseline removal, peak detection, d-spacing
-  (Bragg's law), crystallite size (Scherrer equation) and a downloadable peak table.
+  (Bragg's law), crystallite size (Scherrer equation) and a downloadable peak table. The chart
+  can be saved as a PNG, JPEG or SVG picture of the part that is on screen.
 - XRD material identification: the peaks are matched against a library of common materials, the
   best match is named and every peak gets its Miller indices (hkl).
 - More spectrum types are planned, one at a time (see the roadmap below).

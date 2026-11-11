@@ -2,13 +2,29 @@ import { useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { XrdIdentifyResult, XrdPhaseMatch } from '../api'
-import { hklText, peaksToCsv, type XrdOutcome, type XrdView } from '../chart/xrd'
+import type { ECharts } from '../chart/echartsSetup'
+import {
+  buildXrdOption,
+  hklText,
+  peaksToCsv,
+  type XrdOutcome,
+  type XrdView,
+} from '../chart/xrd'
+import {
+  XRD_PICTURE_FORMATS,
+  xrdPictureOption,
+  zoomWindowOf,
+  type XrdPictureFormat,
+} from '../chart/xrdExport'
+import { useIsDark } from '../useIsDark'
 import { XrdChart } from './XrdChart'
 
 const CHART_HEIGHT = '26rem'
 const VIEWS: XrdView[] = ['original', 'corrected']
 const BUTTON_CLASS =
-  'rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium transition aria-pressed:border-indigo-500 aria-pressed:bg-indigo-500 aria-pressed:text-white dark:border-slate-700'
+  'rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium transition aria-pressed:border-indigo-500 aria-pressed:bg-indigo-500 aria-pressed:text-white disabled:opacity-60 dark:border-slate-700'
+const SELECT_CLASS =
+  'rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-900'
 const COLUMNS = ['position', 'hkl', 'spacing', 'height', 'relative', 'width', 'size']
 
 function downloadCsv(filename: string, text: string): void {
@@ -88,6 +104,8 @@ function MaterialCard({ identification, identifying, error }: MaterialCardProps)
 interface XrdResultsProps {
   outcome: XrdOutcome
   csvName: string
+  // The name of a saved picture of the chart, without its ending.
+  pictureName: string
   identification: XrdIdentifyResult | null
   identifying: boolean
   identifyError: string | null
@@ -96,12 +114,17 @@ interface XrdResultsProps {
 export function XrdResults({
   outcome,
   csvName,
+  pictureName,
   identification,
   identifying,
   identifyError,
 }: XrdResultsProps) {
   const { t } = useTranslation()
+  const dark = useIsDark()
   const [view, setView] = useState<XrdView>('original')
+  const [chart, setChart] = useState<ECharts | null>(null)
+  const [format, setFormat] = useState<XrdPictureFormat>('png')
+  const [pictureError, setPictureError] = useState<string | null>(null)
   const labels = useMemo(
     () => ({
       raw: t('xrd.series.raw'),
@@ -122,6 +145,28 @@ export function XrdResults({
     }
     return peaks.map((_, index) => byPeak.get(index) ?? null)
   }, [identification, peaks])
+  const chartOption = useMemo(
+    () => buildXrdOption(outcome.result, outcome.raw, view, labels, hkl),
+    [outcome, view, labels, hkl],
+  )
+
+  const savePicture = async () => {
+    if (!chart) return
+    setPictureError(null)
+    try {
+      const { exportPicture } = await import('../chart/exportChart')
+      const frame = chart.getDom()
+      exportPicture(format, {
+        option: xrdPictureOption(chartOption, zoomWindowOf(chart)),
+        width: frame.clientWidth,
+        height: frame.clientHeight,
+        title: pictureName,
+        dark,
+      })
+    } catch (error) {
+      setPictureError(error instanceof Error ? error.message : String(error))
+    }
+  }
 
   return (
     <section className="space-y-5 rounded-2xl border border-slate-200 bg-white/70 p-5 shadow-sm sm:p-6 dark:border-slate-800 dark:bg-slate-900/60">
@@ -142,16 +187,40 @@ export function XrdResults({
             </button>
           ))}
         </div>
+        <div className="ms-auto flex flex-wrap items-center gap-2">
+          <select
+            aria-label={t('xrd.picture.format')}
+            value={format}
+            onChange={(event) => setFormat(event.target.value as XrdPictureFormat)}
+            className={SELECT_CLASS}
+          >
+            {XRD_PICTURE_FORMATS.map((item) => (
+              <option key={item} value={item}>
+                {t(`studio.formats.${item}`)}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            disabled={chart === null}
+            onClick={() => void savePicture()}
+            className={BUTTON_CLASS}
+          >
+            {t('xrd.picture.save')}
+          </button>
+        </div>
       </div>
+      {pictureError ? (
+        <p role="alert" className="text-sm text-rose-600 dark:text-rose-400">
+          {t('xrd.picture.failed')} {pictureError}
+        </p>
+      ) : null}
 
       <XrdChart
-        result={outcome.result}
-        raw={outcome.raw}
-        view={view}
-        labels={labels}
-        hkl={hkl}
+        option={chartOption}
         label={t('xrd.chartLabel')}
         height={CHART_HEIGHT}
+        onReady={setChart}
       />
 
       <div className="space-y-3">

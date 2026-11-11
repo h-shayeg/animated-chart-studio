@@ -46,24 +46,61 @@ function exportImage(context: ExportContext, format: 'png' | 'jpeg'): void {
   save(url, fileName(context.title, format === 'jpeg' ? 'jpg' : 'png'))
 }
 
-function exportSvg(context: ExportContext): void {
-  const dom = context.chart.getDom()
+export interface PictureContext {
+  option: ChartOption
+  // The size of the picture in CSS pixels.
+  width: number
+  height: number
+  title: string
+  dark: boolean
+}
+
+function finished(context: PictureContext) {
+  return toEChartsOption({
+    ...context.option,
+    animation: false,
+    backgroundColor: backgroundOf(context.dark),
+  })
+}
+
+function saveSvg(context: PictureContext): void {
   const svgChart = echarts.init(null, context.dark ? 'dark' : undefined, {
     renderer: 'svg',
     ssr: true,
-    width: dom.clientWidth,
-    height: dom.clientHeight,
+    width: context.width,
+    height: context.height,
   })
-  svgChart.setOption(
-    toEChartsOption({
-      ...context.option,
-      animation: false,
-      backgroundColor: backgroundOf(context.dark),
-    }),
-  )
+  svgChart.setOption(finished(context))
   const svg = svgChart.renderToSVGString()
   svgChart.dispose()
   save(new Blob([svg], { type: 'image/svg+xml;charset=utf-8' }), fileName(context.title, 'svg'))
+}
+
+function exportSvg(context: ExportContext): void {
+  const dom = context.chart.getDom()
+  saveSvg({ ...context, width: dom.clientWidth, height: dom.clientHeight })
+}
+
+// Draws an option on a chart of its own, away from the page, and saves it as a picture.
+// The chart on the page is left alone, so the picture can differ from it (no zoom slider).
+export function exportPicture(format: 'png' | 'jpeg' | 'svg', context: PictureContext): void {
+  if (format === 'svg') {
+    saveSvg(context)
+    return
+  }
+  const chart = echarts.init(document.createElement('div'), context.dark ? 'dark' : undefined, {
+    renderer: 'canvas',
+    width: context.width,
+    height: context.height,
+  })
+  chart.setOption(finished(context))
+  const url = chart.getDataURL({
+    type: format,
+    pixelRatio: 2,
+    backgroundColor: backgroundOf(context.dark),
+  })
+  chart.dispose()
+  save(url, fileName(context.title, format === 'jpeg' ? 'jpg' : 'png'))
 }
 
 async function exportVideo(context: ExportContext): Promise<void> {

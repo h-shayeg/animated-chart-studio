@@ -195,7 +195,8 @@ export function XrdWorkspace() {
     setOutcome(null)
   }
 
-  const csvName = `${(file?.name ?? 'xrd').replace(/\.[^.]+$/, '')}-xrd-peaks.csv`
+  const stem = (file?.name ?? 'xrd').replace(/\.[^.]+$/, '')
+  const csvName = `${stem}-xrd-peaks.csv`
 
   return (
     <div className="space-y-5">
@@ -351,6 +352,7 @@ export function XrdWorkspace() {
         <XrdResults
           outcome={outcome}
           csvName={csvName}
+          pictureName={`${stem}-xrd`}
           identification={identification}
           identifying={identifying}
           identifyError={identifyError}
